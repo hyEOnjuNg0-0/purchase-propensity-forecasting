@@ -27,6 +27,7 @@ runs/
 mlruns/
 
 # Planning and local documentation
+Agents.md
 docs/*
 !docs/ARCHITECTURE.md
 !docs/TECHSPEC.md

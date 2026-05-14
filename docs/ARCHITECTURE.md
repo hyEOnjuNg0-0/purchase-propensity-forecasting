@@ -123,3 +123,4 @@ docker run --rm -p 8501:8501 -v ${PWD}/artifacts:/app/artifacts purchase-time-fo
 - `docs/TECHSPEC.md`는 기술 스펙만 담도록 정리하고, 문제 정의와 실험 설계는 `docs/PROJECT_DESIGN.md`로 분리했다.
 - `.gitignore`를 추가하여 `data/`, `artifacts/`, 일부 `docs/` 문서 등 추적 제외 대상을 명시했다.
 - `docs/ARCHITECTURE.md`와 `docs/TECHSPEC.md`는 Git 추적 대상에 포함하도록 `.gitignore` 예외를 추가했다.
+- `Agents.md`는 로컬 작업 지침으로 유지하되 Git 추적 대상에서 제외하도록 `.gitignore`에 추가했다.
