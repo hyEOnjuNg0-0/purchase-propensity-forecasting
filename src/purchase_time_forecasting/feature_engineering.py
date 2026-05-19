@@ -24,6 +24,7 @@ class FeatureEngineeringPolicy:
     prediction_window_minutes: int = LABEL_WINDOW_MINUTES
     train_ratio: float = 0.70
     validation_ratio: float = 0.15
+    max_sequence_length: int = 50
     exclude_at_or_after_first_purchase: bool = True
 
     @property
@@ -89,6 +90,7 @@ def build_feature_dataset(
             history = user_history.get(source_order, _empty_user_history())
             rows.append(
                 {
+                    "sample_id": _sample_id(source_order),
                     "user_session": session_key,
                     "user_id": _string_or_missing(row["user_id"]),
                     "cutoff_time": cutoff_time.isoformat(),
@@ -179,14 +181,13 @@ def build_feature_dataset_from_csv(
         "user_id",
         "user_session",
     ]
-    for chunk in pd.read_csv(path, usecols=lambda column: column in usecols, chunksize=chunksize):
+    for chunk in _read_csv_chunks_until(path, usecols, chunksize, cutoff_time):
         if remaining is not None:
             if remaining <= 0:
                 break
             if len(chunk) > remaining:
                 chunk = chunk.head(remaining)
             remaining -= len(chunk)
-        chunk = _filter_raw_events_until_time(chunk, cutoff_time)
         if chunk.empty:
             continue
         frames.append(chunk)
@@ -221,9 +222,12 @@ def build_feature_dataset_from_csv_streaming(
     report_output_dir = Path(reports_dir)
     feature_output_dir.mkdir(parents=True, exist_ok=True)
     report_output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = feature_output_dir / "feature_dataset.csv"
-    if output_path.exists():
-        output_path.unlink()
+    sample_index_path = feature_output_dir / "sample_index.csv"
+    tabular_path = feature_output_dir / "tabular_feature_dataset.csv"
+    sequence_path = feature_output_dir / "sequence_feature_dataset.parquet"
+    for output_path in (sample_index_path, tabular_path, sequence_path):
+        if output_path.exists():
+            output_path.unlink()
 
     first_purchase_times = _collect_first_purchase_times_from_csv(
         path,
@@ -238,9 +242,11 @@ def build_feature_dataset_from_csv_streaming(
         cutoff_time,
     )
     stats = _StreamingFeatureStats()
-    _write_streaming_feature_dataset(
+    _write_streaming_feature_artifacts(
         path=path,
-        output_path=output_path,
+        sample_index_path=sample_index_path,
+        tabular_path=tabular_path,
+        sequence_path=sequence_path,
         first_purchase_times=first_purchase_times,
         split_boundaries=split_boundaries,
         policy=active_policy,
@@ -276,7 +282,9 @@ def build_feature_dataset_from_csv_streaming(
     return {
         "feature_sample_count": stats.sample_count,
         "split_rows": split_rows,
-        "output_path": output_path,
+        "sample_index_path": sample_index_path,
+        "tabular_path": tabular_path,
+        "sequence_path": sequence_path,
     }
 
 
@@ -308,6 +316,7 @@ def build_feature_dictionary_rows() -> list[dict[str, str]]:
     """모델 입력 여부와 누수 정책을 명시한 feature dictionary를 생성한다."""
 
     rows = [
+        _feature_row("sample_id", "identifier", "string", "key", "모델별 dataset 연결 key"),
         _feature_row("user_session", "identifier", "string", "key", "세션 grouping/key로만 사용"),
         _feature_row("user_id", "identifier", "string", "audit_only", "raw ID는 모델 입력 제외"),
         _feature_row(
@@ -398,6 +407,12 @@ def build_leakage_checklist_rows() -> list[dict[str, str]]:
             "pass",
             "`feature_transformer_scope.csv`가 train split 기준 fit 값을 기록",
         ),
+        _check_row(
+            "common_sample_contract",
+            "baseline/sequence dataset 공통 sample 기준",
+            "pass",
+            "`sample_index.csv`, `tabular_feature_dataset.csv`, `sequence_feature_dataset.parquet`가 동일 `sample_id`를 공유",
+        ),
     ]
 
 
@@ -448,6 +463,7 @@ def build_feature_artifacts(
     source_path: Path | None = None,
     max_rows: int | None = None,
     until_time: str | pd.Timestamp | None = None,
+    max_sequence_length: int = 50,
 ) -> None:
     """feature dataset과 Step 5 문서화 artifact를 저장한다."""
 
@@ -456,7 +472,23 @@ def build_feature_artifacts(
     feature_output_dir.mkdir(parents=True, exist_ok=True)
     report_output_dir.mkdir(parents=True, exist_ok=True)
 
-    features.to_csv(feature_output_dir / "feature_dataset.csv", index=False, encoding="utf-8")
+    build_sample_index(features).to_csv(
+        feature_output_dir / "sample_index.csv",
+        index=False,
+        encoding="utf-8",
+    )
+    build_tabular_feature_dataset(features).to_csv(
+        feature_output_dir / "tabular_feature_dataset.csv",
+        index=False,
+        encoding="utf-8",
+    )
+    build_sequence_feature_dataset(
+        features,
+        max_sequence_length=max_sequence_length,
+    ).to_parquet(
+        feature_output_dir / "sequence_feature_dataset.parquet",
+        index=False,
+    )
     _write_csv(
         report_output_dir / "feature_dictionary.csv",
         build_feature_dictionary_rows(),
@@ -477,6 +509,33 @@ def build_feature_artifacts(
         build_feature_markdown_report(features, source_path, max_rows, until_time),
         encoding="utf-8",
     )
+
+
+def build_sample_index(features: pd.DataFrame) -> pd.DataFrame:
+    """모델 간 평가를 연결하는 공통 sample index를 생성한다."""
+
+    return features.loc[:, _sample_index_columns()].copy()
+
+
+def build_tabular_feature_dataset(features: pd.DataFrame) -> pd.DataFrame:
+    """baseline 모델 입력용 tabular feature dataset을 생성한다."""
+
+    return features.loc[:, ["sample_id", *_tabular_input_columns()]].copy()
+
+
+def build_sequence_feature_dataset(
+    features: pd.DataFrame,
+    max_sequence_length: int = 50,
+) -> pd.DataFrame:
+    """sequence 모델 입력용 prefix sequence dataset을 생성한다."""
+
+    _validate_max_sequence_length(max_sequence_length)
+    sequence = features.loc[:, ["sample_id", *_sequence_input_columns()]].copy()
+    for column in _sequence_input_columns():
+        sequence[column] = sequence[column].map(
+            lambda value: _tail_sequence(value, max_sequence_length)
+        )
+    return sequence
 
 
 def build_split_summary_rows(features: pd.DataFrame) -> list[dict[str, str]]:
@@ -524,12 +583,15 @@ def build_feature_markdown_report(
         else "- 종료 일시 필터: 없음",
         f"- feature sample 수: {len(features):,}",
         "- raw `user_id`, `user_session`, `cutoff_time`은 모델 입력에서 제외하고 audit/key 용도로만 유지한다.",
-        "- sequence feature는 기준 시점까지의 prefix만 포함한다.",
+        "- `sample_id` 기준으로 sample index, tabular feature, sequence feature를 연결한다.",
+        "- sequence feature는 기준 시점까지의 prefix 중 최근 `max_sequence_length`개만 별도 parquet artifact에 저장한다.",
         "- encoder/scaler fit 범위는 train split으로 제한한다.",
         "",
         "## 산출물",
         "",
-        "- `artifacts/features/feature_dataset.csv`: baseline/sequence 모델 공용 feature dataset",
+        "- `artifacts/features/sample_index.csv`: 모델 간 공통 평가 sample index",
+        "- `artifacts/features/tabular_feature_dataset.csv`: baseline 모델 입력용 tabular feature",
+        "- `artifacts/features/sequence_feature_dataset.parquet`: sequence 모델 입력용 prefix sequence feature",
         "- `feature_dictionary.csv`: feature별 모델 입력 역할과 누수 정책",
         "- `feature_leakage_checklist.csv`: Step 5 누수 방지 체크리스트",
         "- `feature_transformer_scope.csv`: train split 기준 encoder/scaler fit 범위",
@@ -568,12 +630,15 @@ def build_feature_markdown_report_from_rows(
         else "- 종료 일시 필터: 없음",
         f"- feature sample 수: {sample_count:,}",
         "- raw `user_id`, `user_session`, `cutoff_time`은 모델 입력에서 제외하고 audit/key 용도로만 유지한다.",
-        "- sequence feature는 기준 시점까지의 prefix만 포함한다.",
+        "- `sample_id` 기준으로 sample index, tabular feature, sequence feature를 연결한다.",
+        "- sequence feature는 기준 시점까지의 prefix 중 최근 `max_sequence_length`개만 별도 parquet artifact에 저장한다.",
         "- encoder/scaler fit 범위는 train split으로 제한한다.",
         "",
         "## 산출물",
         "",
-        "- `artifacts/features/feature_dataset.csv`: baseline/sequence 모델 공용 feature dataset",
+        "- `artifacts/features/sample_index.csv`: 모델 간 공통 평가 sample index",
+        "- `artifacts/features/tabular_feature_dataset.csv`: baseline 모델 입력용 tabular feature",
+        "- `artifacts/features/sequence_feature_dataset.parquet`: sequence 모델 입력용 prefix sequence feature",
         "- `feature_dictionary.csv`: feature별 모델 입력 역할과 누수 정책",
         "- `feature_leakage_checklist.csv`: Step 5 누수 방지 체크리스트",
         "- `feature_transformer_scope.csv`: train split 기준 encoder/scaler fit 범위",
@@ -765,10 +830,7 @@ def _collect_first_purchase_times_from_csv(
 ) -> dict[str, pd.Timestamp]:
     first_purchase_times: dict[str, pd.Timestamp] = {}
     usecols = ["event_time", "event_type", "user_session"]
-    for chunk in pd.read_csv(path, usecols=usecols, chunksize=chunksize):
-        chunk = _filter_raw_events_until_time(chunk, until_time)
-        if chunk.empty:
-            continue
+    for chunk in _read_csv_chunks_until(path, usecols, chunksize, until_time):
         working = chunk.loc[
             chunk["event_type"].eq("purchase") & chunk["user_session"].notna()
         ].copy()
@@ -799,10 +861,7 @@ def _compute_split_boundaries_from_csv(
 ) -> tuple[pd.Timestamp | None, pd.Timestamp | None]:
     time_counts: dict[pd.Timestamp, int] = {}
     usecols = ["event_time", "user_session"]
-    for chunk in pd.read_csv(path, usecols=usecols, chunksize=chunksize):
-        chunk = _filter_raw_events_until_time(chunk, until_time)
-        if chunk.empty:
-            continue
+    for chunk in _read_csv_chunks_until(path, usecols, chunksize, until_time):
         working = chunk.loc[chunk["user_session"].notna()].copy()
         if working.empty:
             continue
@@ -843,9 +902,11 @@ def _compute_split_boundaries_from_csv(
     return (train_boundary, validation_boundary)
 
 
-def _write_streaming_feature_dataset(
+def _write_streaming_feature_artifacts(
     path: Path,
-    output_path: Path,
+    sample_index_path: Path,
+    tabular_path: Path,
+    sequence_path: Path,
     first_purchase_times: dict[str, pd.Timestamp],
     split_boundaries: tuple[pd.Timestamp | None, pd.Timestamp | None],
     policy: FeatureEngineeringPolicy,
@@ -855,8 +916,12 @@ def _write_streaming_feature_dataset(
 ) -> None:
     session_states: dict[str, _StreamingSessionState] = {}
     user_states: dict[str, _StreamingUserState] = {}
-    rows: list[dict[str, object]] = []
-    header = True
+    sample_index_rows: list[dict[str, object]] = []
+    tabular_rows: list[dict[str, object]] = []
+    sequence_rows: list[dict[str, object]] = []
+    sample_index_header = True
+    tabular_header = True
+    sequence_writer = None
     global_order = 0
     usecols = [
         "event_time",
@@ -869,11 +934,8 @@ def _write_streaming_feature_dataset(
         "user_id",
         "user_session",
     ]
-    for chunk in pd.read_csv(path, usecols=lambda column: column in usecols, chunksize=chunksize):
+    for chunk in _read_csv_chunks_until(path, usecols, chunksize, until_time):
         chunk = chunk.copy()
-        chunk = _filter_raw_events_until_time(chunk, until_time)
-        if chunk.empty:
-            continue
         chunk["_source_order"] = range(global_order, global_order + len(chunk))
         global_order += len(chunk)
         working = _prepare_streaming_events(chunk)
@@ -890,14 +952,65 @@ def _write_streaming_feature_dataset(
             )
             if feature_row is None:
                 continue
-            rows.append(feature_row)
+            sample_index_rows.append(_sample_index_row(feature_row))
+            tabular_rows.append(_tabular_feature_row(feature_row))
+            sequence_rows.append(
+                _sequence_feature_row(
+                    feature_row,
+                    max_sequence_length=policy.max_sequence_length,
+                )
+            )
             stats.update(feature_row)
-            if len(rows) >= 100_000:
-                _append_feature_rows(output_path, rows, header)
-                header = False
-                rows = []
-    if rows:
-        _append_feature_rows(output_path, rows, header)
+            if len(sample_index_rows) >= 100_000:
+                _append_rows_to_csv(
+                    sample_index_path,
+                    sample_index_rows,
+                    _sample_index_columns(),
+                    sample_index_header,
+                )
+                _append_rows_to_csv(
+                    tabular_path,
+                    tabular_rows,
+                    _tabular_artifact_columns(),
+                    tabular_header,
+                )
+                sequence_writer = _append_sequence_rows_to_parquet(
+                    sequence_path,
+                    sequence_rows,
+                    _sequence_artifact_columns(),
+                    sequence_writer,
+                )
+                sample_index_header = False
+                tabular_header = False
+                sample_index_rows = []
+                tabular_rows = []
+                sequence_rows = []
+    if sample_index_rows:
+        _append_rows_to_csv(
+            sample_index_path,
+            sample_index_rows,
+            _sample_index_columns(),
+            sample_index_header,
+        )
+        _append_rows_to_csv(
+            tabular_path,
+            tabular_rows,
+            _tabular_artifact_columns(),
+            tabular_header,
+        )
+        sequence_writer = _append_sequence_rows_to_parquet(
+            sequence_path,
+            sequence_rows,
+            _sequence_artifact_columns(),
+            sequence_writer,
+        )
+    if sequence_writer is not None:
+        sequence_writer.close()
+    elif not sequence_path.exists():
+        pd.DataFrame(columns=_sequence_artifact_columns()).to_parquet(
+            sequence_path,
+            index=False,
+        )
 
 
 def _prepare_streaming_events(events: pd.DataFrame) -> pd.DataFrame:
@@ -942,6 +1055,38 @@ def _filter_raw_events_until_time(
         utc=True,
     )
     return events.loc[event_times.notna() & event_times.le(until_time)].copy()
+
+
+def _read_csv_chunks_until(
+    path: Path,
+    usecols: list[str],
+    chunksize: int,
+    until_time: pd.Timestamp | None,
+) -> Iterable[pd.DataFrame]:
+    for chunk in pd.read_csv(
+        path,
+        usecols=lambda column: column in usecols,
+        chunksize=chunksize,
+    ):
+        if until_time is None:
+            yield chunk
+            continue
+
+        event_times = pd.to_datetime(
+            chunk["event_time"],
+            format=EVENT_TIME_FORMAT,
+            errors="coerce",
+            utc=True,
+        )
+        valid_event_times = event_times.dropna()
+        if valid_event_times.empty:
+            continue
+        if valid_event_times.min() > until_time:
+            break
+
+        filtered = chunk.loc[event_times.le(until_time)].copy()
+        if not filtered.empty:
+            yield filtered
 
 
 def _build_streaming_feature_row(
@@ -990,6 +1135,7 @@ def _build_streaming_feature_row(
     )
     prefix = session_state.prefix
     feature_row = {
+        "sample_id": _sample_id(int(row["_source_order"])),
         "user_session": session_id,
         "user_id": user_id,
         "cutoff_time": cutoff_time.isoformat(),
@@ -1048,6 +1194,40 @@ def _append_feature_rows(
         index=False,
         encoding="utf-8",
     )
+
+
+def _append_rows_to_csv(
+    output_path: Path,
+    rows: list[dict[str, object]],
+    columns: list[str],
+    header: bool,
+) -> None:
+    pd.DataFrame(rows, columns=columns).to_csv(
+        output_path,
+        mode="w" if header else "a",
+        header=header,
+        index=False,
+        encoding="utf-8",
+    )
+
+
+def _append_sequence_rows_to_parquet(
+    output_path: Path,
+    rows: list[dict[str, object]],
+    columns: list[str],
+    writer: object,
+) -> object:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    table = pa.Table.from_pandas(
+        pd.DataFrame(rows, columns=columns),
+        preserve_index=False,
+    )
+    if writer is None:
+        writer = pq.ParquetWriter(output_path, table.schema, compression="snappy")
+    writer.write_table(table)
+    return writer
 
 
 def _split_for_time(
@@ -1261,10 +1441,17 @@ def _validate_split_policy(policy: FeatureEngineeringPolicy) -> None:
         raise ValueError("train_ratio와 validation_ratio는 0 이상이어야 한다.")
     if policy.train_ratio + policy.validation_ratio > 1:
         raise ValueError("train_ratio + validation_ratio는 1 이하여야 한다.")
+    _validate_max_sequence_length(policy.max_sequence_length)
+
+
+def _validate_max_sequence_length(max_sequence_length: int) -> None:
+    if max_sequence_length <= 0:
+        raise ValueError("max_sequence_length는 1 이상이어야 한다.")
 
 
 def _feature_column_order() -> list[str]:
     return [
+        "sample_id",
         "user_session",
         "user_id",
         "cutoff_time",
@@ -1274,6 +1461,26 @@ def _feature_column_order() -> list[str]:
         "label",
         "minutes_until_purchase",
     ]
+
+
+def _sample_index_columns() -> list[str]:
+    return [
+        "sample_id",
+        "user_session",
+        "user_id",
+        "cutoff_time",
+        "split",
+        "label",
+        "minutes_until_purchase",
+    ]
+
+
+def _tabular_artifact_columns() -> list[str]:
+    return ["sample_id", *_tabular_input_columns()]
+
+
+def _sequence_artifact_columns() -> list[str]:
+    return ["sample_id", *_sequence_input_columns()]
 
 
 def _tabular_input_columns() -> list[str]:
@@ -1362,6 +1569,35 @@ def _check_row(
 
 def _write_csv(path: Path, rows: Iterable[dict[str, str]]) -> None:
     pd.DataFrame(list(rows)).to_csv(path, index=False, encoding="utf-8")
+
+
+def _sample_index_row(row: dict[str, object]) -> dict[str, object]:
+    return {column: row.get(column) for column in _sample_index_columns()}
+
+
+def _tabular_feature_row(row: dict[str, object]) -> dict[str, object]:
+    return {column: row.get(column) for column in _tabular_artifact_columns()}
+
+
+def _sequence_feature_row(
+    row: dict[str, object],
+    max_sequence_length: int,
+) -> dict[str, object]:
+    sequence_row = {"sample_id": row.get("sample_id")}
+    for column in _sequence_input_columns():
+        sequence_row[column] = _tail_sequence(row.get(column), max_sequence_length)
+    return sequence_row
+
+
+def _tail_sequence(value: object, max_sequence_length: int) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    tokens = str(value).split(SEQUENCE_DELIMITER)
+    return SEQUENCE_DELIMITER.join(tokens[-max_sequence_length:])
+
+
+def _sample_id(source_order: int) -> str:
+    return f"sample_{source_order:012d}"
 
 
 def _price_bin(price: object) -> str:

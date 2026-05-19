@@ -1,4 +1,5 @@
 feature_name,feature_group,dtype,model_role,leakage_policy
+sample_id,identifier,string,key,모델별 dataset 연결 key
 user_session,identifier,string,key,세션 grouping/key로만 사용
 user_id,identifier,string,audit_only,raw ID는 모델 입력 제외
 cutoff_time,time,datetime,audit_only,"원문 timestamp는 모델 입력 제외, 파생 시간 feature만 사용"

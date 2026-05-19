@@ -7,12 +7,15 @@
 - 종료 일시 필터: 없음
 - feature sample 수: 19,441
 - raw `user_id`, `user_session`, `cutoff_time`은 모델 입력에서 제외하고 audit/key 용도로만 유지한다.
-- sequence feature는 기준 시점까지의 prefix만 포함한다.
+- `sample_id` 기준으로 sample index, tabular feature, sequence feature를 연결한다.
+- sequence feature는 기준 시점까지의 prefix 중 최근 `max_sequence_length`개만 별도 parquet artifact에 저장한다.
 - encoder/scaler fit 범위는 train split으로 제한한다.
 
 ## 산출물
 
-- `artifacts/features/feature_dataset.csv`: baseline/sequence 모델 공용 feature dataset
+- `artifacts/features/sample_index.csv`: 모델 간 공통 평가 sample index
+- `artifacts/features/tabular_feature_dataset.csv`: baseline 모델 입력용 tabular feature
+- `artifacts/features/sequence_feature_dataset.parquet`: sequence 모델 입력용 prefix sequence feature
 - `feature_dictionary.csv`: feature별 모델 입력 역할과 누수 정책
 - `feature_leakage_checklist.csv`: Step 5 누수 방지 체크리스트
 - `feature_transformer_scope.csv`: train split 기준 encoder/scaler fit 범위

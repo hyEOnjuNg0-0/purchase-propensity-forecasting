@@ -6,7 +6,7 @@
 
 이 프로젝트는 Kaggle의 `eCommerce behavior data from multi category store` 중 `2019-Oct.csv`를 사용하여 사용자 행동 시퀀스 기반 구매 시점 예측 문제를 정의하고, 데이터 신뢰성 검증부터 모델 비교와 행동 패턴 해석까지 수행하는 데이터 사이언스 포트폴리오 프로젝트이다.
 
-운영 서비스화는 범위에서 제외하되, 포트폴리오 결과를 검토하기 쉽도록 Streamlit 기반 결과 대시보드와 간단한 Docker 실행 환경을 포함한다. 최종 목표는 문제 정의 능력, 데이터 검증 역량, 실험 설계 역량, 모델 해석 능력을 리포트와 재현 가능한 분석 코드로 보여주는 것이다.
+운영 서비스화는 범위에서 제외하되, 포트폴리오 결과를 검토하기 쉽도록 Streamlit 기반 결과 대시보드와 간단한 Docker 실행 환경을 포함한다. 최종 목표는 문제 정의 능력, 데이터 검증 역량, 실험 설계 역량, 모델 해석 능력을 Streamlit 대시보드와 재현 가능한 분석 코드로 보여주는 것이다.
 
 ## 2. 문제 정의
 
@@ -126,6 +126,24 @@ Step 3의 기본 라벨링 정책은 다음과 같다.
 
 ## 5. Feature 설계
 
+### 5.0 공통 Sample 계약
+
+baseline 모델과 sequence model은 저장 포맷과 입력 feature가 달라도 같은 평가 sample을 사용해야 공정하게 비교할 수 있다. 이를 위해 모든 모델용 dataset은 공통 `sample_id`를 기준으로 연결한다.
+
+공통 sample index는 다음 컬럼을 가진다.
+
+| 컬럼 | 역할 |
+| --- | --- |
+| `sample_id` | 모델 간 평가를 연결하는 고유 key |
+| `user_session` | 세션 단위 라벨 검증 및 audit key |
+| `user_id` | 사용자 단위 누수 검증 및 audit key |
+| `cutoff_time` | 예측 기준 시점 |
+| `split` | 시간 기준 train/validation/test 구분 |
+| `label` | 향후 30분 내 purchase 발생 여부 |
+| `minutes_until_purchase` | positive sample의 구매까지 남은 시간 |
+
+`sample_id`, `user_session`, `user_id`, `cutoff_time`은 모델 입력 feature로 직접 사용하지 않고, dataset 연결과 검증을 위한 audit/key 컬럼으로만 사용한다.
+
 ### 5.1 공통 Feature
 
 - 세션 내 이벤트 순서
@@ -144,6 +162,8 @@ Step 3의 기본 라벨링 정책은 다음과 같다.
 - `category_id` sequence
 - `price` bin sequence
 - 이벤트 간 time gap sequence
+- sequence model 입력은 최근 `max_sequence_length`개 prefix로 제한한다.
+- sequence feature는 CSV 문자열 반복 저장을 피하고, 모델 학습에 적합한 별도 artifact로 저장한다.
 
 ### 5.3 Time-aware Feature
 
@@ -170,6 +190,32 @@ Step 3의 기본 라벨링 정책은 다음과 같다.
   - sequence model에서는 embedding 입력 후보로 사용할 수 있다.
 
 모든 사용자 단위 집계 feature는 기준 시점 이전 이벤트만 사용해야 하며, train 기간에서 fit한 encoder/scaler만 validation/test에 적용한다.
+
+### 5.5 Feature Artifact 분리 정책
+
+Step 5 이후 feature artifact는 하나의 거대한 CSV로 모든 feature를 저장하지 않고, 목적에 따라 분리한다.
+
+```text
+artifacts/features
+|-- sample_index.csv
+|-- tabular_feature_dataset.csv
+`-- sequence_feature_dataset.parquet
+```
+
+- `sample_index.csv`
+  - 모든 모델이 공유하는 평가 기준이다.
+  - `sample_id`, `user_session`, `user_id`, `cutoff_time`, `split`, `label`, `minutes_until_purchase`를 포함한다.
+  - 모델 입력이 아니라 평가 정렬, 오류 분석, Streamlit 표시 연결에 사용한다.
+- `tabular_feature_dataset.csv`
+  - Logistic Regression, LightGBM baseline용 dataset이다.
+  - `sample_id`와 tabular feature만 포함한다.
+  - `event_type_sequence`, `product_id_sequence`, `category_id_sequence`, `price_bin_sequence`, `time_gap_minutes_sequence`처럼 긴 prefix 문자열은 저장하지 않는다.
+- `sequence_feature_dataset.parquet`
+  - GRU, SASRec 같은 sequence model용 dataset이다.
+  - `sample_id`와 최근 `max_sequence_length`개 sequence feature를 포함한다.
+  - CSV 문자열 반복 저장 대신 압축 가능한 columnar artifact로 저장한다.
+
+이 분리 정책은 파일 크기를 줄이기 위한 단순 최적화가 아니라, 모델별 입력 표현을 명확히 분리하고 동일 `sample_id`/`label`/`split` 기준으로 성능을 비교하기 위한 계약이다.
 
 ## 6. 모델링 계획
 
@@ -226,6 +272,20 @@ Step 3의 기본 라벨링 정책은 다음과 같다.
 - 구매까지 남은 시간 구간별 성능 차이
 - 10분, 30분, 60분 label window 민감도
 
+### 7.4 모델 비교 조건
+
+baseline 모델과 sequence model의 성능 비교는 입력 feature 형식이 같아서 가능한 것이 아니라, 동일한 평가 sample을 예측하기 때문에 가능하다.
+
+비교 시 반드시 다음 조건을 맞춘다.
+
+- 동일 `sample_id` 집합
+- 동일 `label`
+- 동일 train/validation/test split
+- 동일 metric 계산 코드
+- 동일 평가 시점과 threshold 정책
+
+따라서 성능 비교의 해석은 "같은 구매 예측 문제에서 tabular summary 표현과 sequence 표현 중 어느 쪽이 더 유효한가"로 둔다. sequence model이 baseline보다 높으면 행동 순서 정보의 추가 효용을 보여주고, 낮거나 비슷하면 현재 문제에서는 요약 feature가 충분히 강하거나 sequence 학습 이득이 제한적이라는 근거로 해석한다.
+
 ## 8. 해석 및 분석 계획
 
 ### 8.1 데이터 분석
@@ -243,7 +303,7 @@ Step 3의 기본 라벨링 정책은 다음과 같다.
 - SASRec attention map 시각화
 - UMAP 또는 t-SNE 기반 sequence representation 시각화
 
-### 8.3 리포트 핵심 메시지
+### 8.3 대시보드 핵심 메시지
 
 - 데이터 신뢰성 검증을 통해 라벨과 feature 생성의 타당성을 확보했다.
 - 단순 이진 분류가 아니라 시간 제한이 있는 구매 발생 문제로 정의했다.
@@ -271,6 +331,10 @@ Streamlit은 원천 CSV를 직접 처리하지 않고, 분석 pipeline이 생성
 
 ```text
 artifacts
+|-- features
+|   |-- sample_index.csv
+|   |-- tabular_feature_dataset.csv
+|   `-- sequence_feature_dataset.parquet
 |-- reports
 |   |-- data_quality_summary.csv
 |   |-- label_distribution.csv
@@ -296,4 +360,4 @@ artifact가 없을 경우 임의의 모의 데이터를 생성하지 않고, 필
 - attention 또는 embedding 기반 해석 시각화가 최소 1개 이상 포함되어 있다.
 - Streamlit에서 실제 artifact 기반 결과를 확인할 수 있다.
 - Docker로 Streamlit 대시보드를 실행할 수 있다.
-- 한계점과 후속 개선안이 리포트에 명확히 정리되어 있다.
+- 한계점과 후속 개선안이 Streamlit 대시보드에서 명확히 확인된다.

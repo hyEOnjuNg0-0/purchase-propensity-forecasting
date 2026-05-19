@@ -85,6 +85,12 @@ def parse_args() -> argparse.Namespace:
         default=0.15,
         help="시간 기준 validation split 비율",
     )
+    parser.add_argument(
+        "--max-sequence-length",
+        type=int,
+        default=50,
+        help="sequence model 입력 artifact에 저장할 최근 prefix 최대 길이",
+    )
     return parser.parse_args()
 
 
@@ -94,6 +100,7 @@ def main() -> None:
         prediction_window_minutes=args.window_minutes,
         train_ratio=args.train_ratio,
         validation_ratio=args.validation_ratio,
+        max_sequence_length=args.max_sequence_length,
     )
     if args.max_rows is None:
         result = build_feature_dataset_from_csv_streaming(
@@ -121,6 +128,7 @@ def main() -> None:
             source_path=args.input,
             max_rows=args.max_rows,
             until_time=args.until_date,
+            max_sequence_length=policy.max_sequence_length,
         )
         feature_sample_count = len(features)
         split_rows = build_split_summary_rows(features)

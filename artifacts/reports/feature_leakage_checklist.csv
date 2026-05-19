@@ -6,3 +6,4 @@ prefix_scope,sequence feature 미래 이벤트 제외,pass,session별 누적 pre
 post_purchase_excluded,첫 purchase 이후 sample 제외,pass,첫 purchase 시점과 이후 이벤트는 학습 sample 생성에서 제외
 user_history_scope,사용자 과거 행동 집계 기준 시점 이전 제한,pass,user_past_* feature는 현재 이벤트 처리 전에 계산
 transformer_fit_scope,encoder/scaler fit 범위 train split 제한,pass,`feature_transformer_scope.csv`가 train split 기준 fit 값을 기록
+common_sample_contract,baseline/sequence dataset 공통 sample 기준,pass,"`sample_index.csv`, `tabular_feature_dataset.csv`, `sequence_feature_dataset.parquet`가 동일 `sample_id`를 공유"

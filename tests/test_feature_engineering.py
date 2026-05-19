@@ -18,6 +18,9 @@ from purchase_time_forecasting.feature_engineering import (  # noqa: E402
     build_feature_dataset_from_csv,
     build_feature_dataset_from_csv_streaming,
     build_feature_dictionary_rows,
+    build_sample_index,
+    build_sequence_feature_dataset,
+    build_tabular_feature_dataset,
     build_transformer_scope_rows,
     normalize_until_time,
 )
@@ -75,6 +78,11 @@ def test_build_feature_dataset_keeps_prefix_features_before_future_purchase() ->
 
     features = build_feature_dataset(events)
 
+    assert features["sample_id"].tolist() == [
+        "sample_000000000000",
+        "sample_000000000001",
+        "sample_000000000003",
+    ]
     assert features["label"].tolist() == [1, 1, 0]
     assert features["event_type_sequence"].tolist() == ["view", "view cart", "view"]
     assert features["event_type_sequence"].str.contains("purchase").sum() == 0
@@ -88,6 +96,7 @@ def test_feature_dictionary_excludes_raw_ids_and_raw_timestamp_from_model_input(
     dictionary_rows = build_feature_dictionary_rows()
     roles = {row["feature_name"]: row["model_role"] for row in dictionary_rows}
 
+    assert roles["sample_id"] == "key"
     assert roles["user_session"] == "key"
     assert roles["user_id"] == "audit_only"
     assert roles["cutoff_time"] == "audit_only"
@@ -161,7 +170,7 @@ def test_transformer_scope_uses_train_split_only() -> None:
     assert all(row["fit_split"] == "train" for row in rows)
 
 
-def test_feature_artifacts_are_written(tmp_path: Path) -> None:
+def test_feature_artifacts_are_split_by_sample_contract(tmp_path: Path) -> None:
     events = pd.DataFrame(
         [
             {
@@ -174,18 +183,94 @@ def test_feature_artifacts_are_written(tmp_path: Path) -> None:
                 "price": 10.0,
                 "user_id": 101,
                 "user_session": "s1",
+            },
+            {
+                "event_time": "2019-10-01 00:01:00 UTC",
+                "event_type": "cart",
+                "product_id": 2,
+                "category_id": 10,
+                "category_code": "electronics.phone",
+                "brand": "brand_a",
+                "price": 20.0,
+                "user_id": 101,
+                "user_session": "s1",
+            },
+            {
+                "event_time": "2019-10-01 00:02:00 UTC",
+                "event_type": "view",
+                "product_id": 3,
+                "category_id": 11,
+                "category_code": "electronics.tablet",
+                "brand": "brand_b",
+                "price": 30.0,
+                "user_id": 101,
+                "user_session": "s1",
             }
         ]
     )
     features = build_feature_dataset(events)
 
-    build_feature_artifacts(features, tmp_path / "features", tmp_path / "reports")
+    build_feature_artifacts(
+        features,
+        tmp_path / "features",
+        tmp_path / "reports",
+        max_sequence_length=2,
+    )
 
-    assert (tmp_path / "features" / "feature_dataset.csv").exists()
+    sample_index = pd.read_csv(tmp_path / "features" / "sample_index.csv")
+    tabular = pd.read_csv(tmp_path / "features" / "tabular_feature_dataset.csv")
+    sequence = pd.read_parquet(tmp_path / "features" / "sequence_feature_dataset.parquet")
+
+    assert sample_index.columns.tolist() == [
+        "sample_id",
+        "user_session",
+        "user_id",
+        "cutoff_time",
+        "split",
+        "label",
+        "minutes_until_purchase",
+    ]
+    assert "label" not in tabular.columns
+    assert "split" not in tabular.columns
+    assert "event_type_sequence" not in tabular.columns
+    assert sequence["sample_id"].tolist() == sample_index["sample_id"].tolist()
+    assert tabular["sample_id"].tolist() == sample_index["sample_id"].tolist()
+    assert sequence["event_type_sequence"].tolist()[-1] == "cart view"
     assert (tmp_path / "reports" / "feature_dictionary.csv").exists()
     assert (tmp_path / "reports" / "feature_leakage_checklist.csv").exists()
     assert (tmp_path / "reports" / "feature_transformer_scope.csv").exists()
     assert (tmp_path / "reports" / "feature_report.md").exists()
+
+
+def test_feature_artifact_builders_share_sample_id_and_split_model_inputs() -> None:
+    events = pd.DataFrame(
+        [
+            {
+                "event_time": f"2019-10-01 00:0{minute}:00 UTC",
+                "event_type": event_type,
+                "product_id": minute + 1,
+                "category_id": 10,
+                "category_code": "electronics.phone",
+                "brand": "brand_a",
+                "price": 10.0 + minute,
+                "user_id": 101,
+                "user_session": "s1",
+            }
+            for minute, event_type in enumerate(["view", "cart", "view"])
+        ]
+    )
+    features = build_feature_dataset(events)
+
+    sample_index = build_sample_index(features)
+    tabular = build_tabular_feature_dataset(features)
+    sequence = build_sequence_feature_dataset(features, max_sequence_length=2)
+
+    assert sample_index["sample_id"].tolist() == tabular["sample_id"].tolist()
+    assert sample_index["sample_id"].tolist() == sequence["sample_id"].tolist()
+    assert {"user_id", "user_session", "cutoff_time", "label", "split"}.isdisjoint(
+        tabular.columns
+    )
+    assert sequence["event_type_sequence"].tolist() == ["view", "view cart", "cart view"]
 
 
 def test_build_feature_dataset_from_csv_filters_until_date_inclusively(
@@ -237,8 +322,12 @@ def test_streaming_feature_dataset_filters_until_date(
         chunksize=2,
         until_time="2019-10-01",
     )
-    features = pd.read_csv(tmp_path / "features" / "feature_dataset.csv")
+    sample_index = pd.read_csv(tmp_path / "features" / "sample_index.csv")
+    tabular = pd.read_csv(tmp_path / "features" / "tabular_feature_dataset.csv")
+    sequence = pd.read_parquet(tmp_path / "features" / "sequence_feature_dataset.parquet")
 
     assert result["feature_sample_count"] == 1
-    assert features["cutoff_time"].tolist() == ["2019-10-01T00:00:00+00:00"]
-    assert features["label"].tolist() == [1]
+    assert sample_index["cutoff_time"].tolist() == ["2019-10-01T00:00:00+00:00"]
+    assert sample_index["label"].tolist() == [1]
+    assert tabular["sample_id"].tolist() == sample_index["sample_id"].tolist()
+    assert sequence["sample_id"].tolist() == sample_index["sample_id"].tolist()
