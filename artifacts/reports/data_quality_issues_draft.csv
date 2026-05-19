@@ -1,0 +1,4 @@
+severity,issue,evidence,next_action
+info,brand 결측 존재,"6,117,080 rows (0.144105)",모델 영향과 unknown 처리 여부를 Step 2/5에서 결정한다.
+info,category_code 결측 존재,"13,515,609 rows (0.318398)",모델 영향과 unknown 처리 여부를 Step 2/5에서 결정한다.
+info,user_session 결측 존재,2 rows (0.000000),모델 영향과 unknown 처리 여부를 Step 2/5에서 결정한다.

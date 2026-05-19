@@ -1,0 +1,26 @@
+section,metric,value,description
+데이터 크기,파일 경로,data\2019-Oct.csv,프로파일링 대상 CSV
+데이터 크기,CSV 파일 크기,5.28 GB,디스크 기준
+데이터 크기,row count,"42,448,764",전체 이벤트 수
+데이터 크기,추정 pandas memory footprint,15.37 GB,chunk deep memory 합산 기준
+스키마,컬럼 수,9,CSV header 기준
+시간 범위,event_time min,2019-10-01T00:00:00+00:00,UTC 파싱 가능 값 기준
+시간 범위,event_time max,2019-10-31T23:59:59+00:00,UTC 파싱 가능 값 기준
+시간 범위,event_time parse failures,0,파싱 실패 또는 결측 event_time
+행동 분포,purchase event count,"742,849",event_type == purchase
+행동 분포,purchase event ratio,0.017500,전체 이벤트 중 purchase 비율
+행동 분포,purchase session count,"629,560",purchase가 1회 이상 포함된 세션 수
+행동 분포,purchase session ratio,0.068102,전체 세션 중 purchase 포함 세션 비율
+고유값,user_id unique count,"3,022,290",결측 제외 exact count
+고유값,user_session unique count,"9,244,421",결측 제외 exact count
+고유값,product_id unique count,"166,794",결측 제외 exact count
+고유값,category_id unique count,624,결측 제외 exact count
+스키마,event_time dtype,object,pandas 추론 dtype
+스키마,event_type dtype,object,pandas 추론 dtype
+스키마,product_id dtype,int64,pandas 추론 dtype
+스키마,category_id dtype,int64,pandas 추론 dtype
+스키마,category_code dtype,object,pandas 추론 dtype
+스키마,brand dtype,object,pandas 추론 dtype
+스키마,price dtype,float64,pandas 추론 dtype
+스키마,user_id dtype,int64,pandas 추론 dtype
+스키마,user_session dtype,object,pandas 추론 dtype

@@ -16,15 +16,26 @@ env/
 .env.*
 !.env.example
 
-# Data and generated artifacts
+# Data and large/generated artifacts
 data/
-artifacts/
 outputs/
 reports/
 models/
 checkpoints/
 runs/
 mlruns/
+
+# Portfolio review artifacts
+artifacts/*
+!artifacts/reports/
+!artifacts/reports/*.csv
+!artifacts/reports/*.md
+!artifacts/figures/
+!artifacts/figures/*.png
+!artifacts/figures/*.jpg
+!artifacts/figures/*.jpeg
+!artifacts/figures/*.svg
+artifacts/models/
 
 # Planning and local documentation
 Agents.md
