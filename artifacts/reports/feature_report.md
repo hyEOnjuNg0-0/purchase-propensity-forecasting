@@ -4,6 +4,7 @@
 
 - 대상 파일: `C:\PurchaseTimeForecasting\data\2019-Oct.csv`
 - 입력 row 제한: 20,000
+- 종료 일시 필터: 없음
 - feature sample 수: 19,441
 - raw `user_id`, `user_session`, `cutoff_time`은 모델 입력에서 제외하고 audit/key 용도로만 유지한다.
 - sequence feature는 기준 시점까지의 prefix만 포함한다.

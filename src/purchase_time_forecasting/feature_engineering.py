@@ -155,6 +155,7 @@ def build_feature_dataset_from_csv(
     policy: FeatureEngineeringPolicy | None = None,
     chunksize: int = 1_000_000,
     max_rows: int | None = None,
+    until_time: str | pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """CSV에서 Step 5 feature dataset을 생성한다.
 
@@ -164,6 +165,7 @@ def build_feature_dataset_from_csv(
     """
 
     path = Path(csv_path)
+    cutoff_time = normalize_until_time(until_time)
     frames: list[pd.DataFrame] = []
     remaining = max_rows
     usecols = [
@@ -184,6 +186,9 @@ def build_feature_dataset_from_csv(
             if len(chunk) > remaining:
                 chunk = chunk.head(remaining)
             remaining -= len(chunk)
+        chunk = _filter_raw_events_until_time(chunk, cutoff_time)
+        if chunk.empty:
+            continue
         frames.append(chunk)
 
     if not frames:
@@ -197,6 +202,7 @@ def build_feature_dataset_from_csv_streaming(
     reports_dir: Path,
     policy: FeatureEngineeringPolicy | None = None,
     chunksize: int = 1_000_000,
+    until_time: str | pd.Timestamp | None = None,
 ) -> dict[str, object]:
     """전체 CSV 기준 feature dataset을 chunk 단위로 생성한다.
 
@@ -209,6 +215,7 @@ def build_feature_dataset_from_csv_streaming(
 
     active_policy = policy or FeatureEngineeringPolicy()
     _validate_split_policy(active_policy)
+    cutoff_time = normalize_until_time(until_time)
     path = Path(csv_path)
     feature_output_dir = Path(features_dir)
     report_output_dir = Path(reports_dir)
@@ -218,12 +225,17 @@ def build_feature_dataset_from_csv_streaming(
     if output_path.exists():
         output_path.unlink()
 
-    first_purchase_times = _collect_first_purchase_times_from_csv(path, chunksize)
+    first_purchase_times = _collect_first_purchase_times_from_csv(
+        path,
+        chunksize,
+        cutoff_time,
+    )
     split_boundaries = _compute_split_boundaries_from_csv(
         path,
         first_purchase_times,
         active_policy,
         chunksize,
+        cutoff_time,
     )
     stats = _StreamingFeatureStats()
     _write_streaming_feature_dataset(
@@ -234,6 +246,7 @@ def build_feature_dataset_from_csv_streaming(
         policy=active_policy,
         chunksize=chunksize,
         stats=stats,
+        until_time=cutoff_time,
     )
 
     _write_csv(
@@ -256,6 +269,7 @@ def build_feature_dataset_from_csv_streaming(
             sample_count=stats.sample_count,
             source_path=path,
             max_rows=None,
+            until_time=cutoff_time,
         ),
         encoding="utf-8",
     )
@@ -264,6 +278,30 @@ def build_feature_dataset_from_csv_streaming(
         "split_rows": split_rows,
         "output_path": output_path,
     }
+
+
+def normalize_until_time(
+    until_time: str | pd.Timestamp | None,
+) -> pd.Timestamp | None:
+    """CLI/API 입력 cutoff를 UTC Timestamp로 정규화한다.
+
+    `YYYY-MM-DD` 형식은 해당 날짜 전체를 포함하도록 23:59:59.999999999 UTC로
+    변환한다. timestamp 형식은 지정한 시각까지 포함한다.
+    """
+
+    if until_time is None:
+        return None
+    if isinstance(until_time, str):
+        text = until_time.strip()
+        is_date_only = len(text) == 10 and text.count("-") == 2
+        timestamp = pd.Timestamp(text)
+        if is_date_only:
+            timestamp = timestamp + pd.Timedelta(days=1) - pd.Timedelta(nanoseconds=1)
+    else:
+        timestamp = pd.Timestamp(until_time)
+    if timestamp.tzinfo is None:
+        return timestamp.tz_localize("UTC")
+    return timestamp.tz_convert("UTC")
 
 
 def build_feature_dictionary_rows() -> list[dict[str, str]]:
@@ -409,6 +447,7 @@ def build_feature_artifacts(
     reports_dir: Path,
     source_path: Path | None = None,
     max_rows: int | None = None,
+    until_time: str | pd.Timestamp | None = None,
 ) -> None:
     """feature dataset과 Step 5 문서화 artifact를 저장한다."""
 
@@ -435,7 +474,7 @@ def build_feature_artifacts(
         build_split_summary_rows(features),
     )
     (report_output_dir / "feature_report.md").write_text(
-        build_feature_markdown_report(features, source_path, max_rows),
+        build_feature_markdown_report(features, source_path, max_rows, until_time),
         encoding="utf-8",
     )
 
@@ -468,6 +507,7 @@ def build_feature_markdown_report(
     features: pd.DataFrame,
     source_path: Path | None = None,
     max_rows: int | None = None,
+    until_time: str | pd.Timestamp | None = None,
 ) -> str:
     """Step 5 리포트 초안을 생성한다."""
 
@@ -479,6 +519,9 @@ def build_feature_markdown_report(
         "",
         f"- 대상 파일: `{source_path}`" if source_path else "- 대상 파일: DataFrame 입력",
         f"- 입력 row 제한: {max_rows:,}" if max_rows is not None else "- 입력 row 제한: 없음",
+        f"- 종료 일시 필터: {normalize_until_time(until_time)}"
+        if until_time is not None
+        else "- 종료 일시 필터: 없음",
         f"- feature sample 수: {len(features):,}",
         "- raw `user_id`, `user_session`, `cutoff_time`은 모델 입력에서 제외하고 audit/key 용도로만 유지한다.",
         "- sequence feature는 기준 시점까지의 prefix만 포함한다.",
@@ -509,6 +552,7 @@ def build_feature_markdown_report_from_rows(
     sample_count: int,
     source_path: Path | None = None,
     max_rows: int | None = None,
+    until_time: str | pd.Timestamp | None = None,
 ) -> str:
     """streaming 실행 결과처럼 DataFrame이 없을 때 Step 5 리포트를 생성한다."""
 
@@ -519,6 +563,9 @@ def build_feature_markdown_report_from_rows(
         "",
         f"- 대상 파일: `{source_path}`" if source_path else "- 대상 파일: DataFrame 입력",
         f"- 입력 row 제한: {max_rows:,}" if max_rows is not None else "- 입력 row 제한: 없음",
+        f"- 종료 일시 필터: {normalize_until_time(until_time)}"
+        if until_time is not None
+        else "- 종료 일시 필터: 없음",
         f"- feature sample 수: {sample_count:,}",
         "- raw `user_id`, `user_session`, `cutoff_time`은 모델 입력에서 제외하고 audit/key 용도로만 유지한다.",
         "- sequence feature는 기준 시점까지의 prefix만 포함한다.",
@@ -714,10 +761,14 @@ class _StreamingUserState:
 def _collect_first_purchase_times_from_csv(
     path: Path,
     chunksize: int,
+    until_time: pd.Timestamp | None = None,
 ) -> dict[str, pd.Timestamp]:
     first_purchase_times: dict[str, pd.Timestamp] = {}
     usecols = ["event_time", "event_type", "user_session"]
     for chunk in pd.read_csv(path, usecols=usecols, chunksize=chunksize):
+        chunk = _filter_raw_events_until_time(chunk, until_time)
+        if chunk.empty:
+            continue
         working = chunk.loc[
             chunk["event_type"].eq("purchase") & chunk["user_session"].notna()
         ].copy()
@@ -744,10 +795,14 @@ def _compute_split_boundaries_from_csv(
     first_purchase_times: dict[str, pd.Timestamp],
     policy: FeatureEngineeringPolicy,
     chunksize: int,
+    until_time: pd.Timestamp | None = None,
 ) -> tuple[pd.Timestamp | None, pd.Timestamp | None]:
     time_counts: dict[pd.Timestamp, int] = {}
     usecols = ["event_time", "user_session"]
     for chunk in pd.read_csv(path, usecols=usecols, chunksize=chunksize):
+        chunk = _filter_raw_events_until_time(chunk, until_time)
+        if chunk.empty:
+            continue
         working = chunk.loc[chunk["user_session"].notna()].copy()
         if working.empty:
             continue
@@ -796,6 +851,7 @@ def _write_streaming_feature_dataset(
     policy: FeatureEngineeringPolicy,
     chunksize: int,
     stats: _StreamingFeatureStats,
+    until_time: pd.Timestamp | None = None,
 ) -> None:
     session_states: dict[str, _StreamingSessionState] = {}
     user_states: dict[str, _StreamingUserState] = {}
@@ -815,6 +871,9 @@ def _write_streaming_feature_dataset(
     ]
     for chunk in pd.read_csv(path, usecols=lambda column: column in usecols, chunksize=chunksize):
         chunk = chunk.copy()
+        chunk = _filter_raw_events_until_time(chunk, until_time)
+        if chunk.empty:
+            continue
         chunk["_source_order"] = range(global_order, global_order + len(chunk))
         global_order += len(chunk)
         working = _prepare_streaming_events(chunk)
@@ -868,6 +927,21 @@ def _prepare_streaming_events(events: pd.DataFrame) -> pd.DataFrame:
     working["event_type"] = working["event_type"].astype(str)
     working["_price"] = pd.to_numeric(working["price"], errors="coerce")
     return working.sort_values(["_event_time", "_source_order"], kind="mergesort")
+
+
+def _filter_raw_events_until_time(
+    events: pd.DataFrame,
+    until_time: pd.Timestamp | None,
+) -> pd.DataFrame:
+    if until_time is None or events.empty or "event_time" not in events:
+        return events
+    event_times = pd.to_datetime(
+        events["event_time"],
+        format=EVENT_TIME_FORMAT,
+        errors="coerce",
+        utc=True,
+    )
+    return events.loc[event_times.notna() & event_times.le(until_time)].copy()
 
 
 def _build_streaming_feature_row(

@@ -15,8 +15,11 @@ from purchase_time_forecasting.feature_engineering import (  # noqa: E402
     FeatureEngineeringPolicy,
     build_feature_artifacts,
     build_feature_dataset,
+    build_feature_dataset_from_csv,
+    build_feature_dataset_from_csv_streaming,
     build_feature_dictionary_rows,
     build_transformer_scope_rows,
+    normalize_until_time,
 )
 
 
@@ -183,3 +186,59 @@ def test_feature_artifacts_are_written(tmp_path: Path) -> None:
     assert (tmp_path / "reports" / "feature_leakage_checklist.csv").exists()
     assert (tmp_path / "reports" / "feature_transformer_scope.csv").exists()
     assert (tmp_path / "reports" / "feature_report.md").exists()
+
+
+def test_build_feature_dataset_from_csv_filters_until_date_inclusively(
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "sample.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "event_time,event_type,product_id,category_id,category_code,brand,price,user_id,user_session",
+                "2019-10-01 23:59:59 UTC,view,1,10,electronics.phone,brand_a,10.0,101,s1",
+                "2019-10-02 00:00:00 UTC,view,2,20,apparel.shoes,brand_b,20.0,102,s2",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    features = build_feature_dataset_from_csv(
+        csv_path,
+        chunksize=1,
+        until_time="2019-10-01",
+    )
+
+    assert len(features) == 1
+    assert features["cutoff_time"].tolist() == ["2019-10-01T23:59:59+00:00"]
+    assert normalize_until_time("2019-10-01").isoformat() == "2019-10-01T23:59:59.999999999+00:00"
+
+
+def test_streaming_feature_dataset_filters_until_date(
+    tmp_path: Path,
+) -> None:
+    csv_path = tmp_path / "sample.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "event_time,event_type,product_id,category_id,category_code,brand,price,user_id,user_session",
+                "2019-10-01 00:00:00 UTC,view,1,10,electronics.phone,brand_a,10.0,101,s1",
+                "2019-10-01 00:10:00 UTC,purchase,1,10,electronics.phone,brand_a,10.0,101,s1",
+                "2019-10-02 00:00:00 UTC,view,2,20,apparel.shoes,brand_b,20.0,102,s2",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = build_feature_dataset_from_csv_streaming(
+        csv_path,
+        tmp_path / "features",
+        tmp_path / "reports",
+        chunksize=2,
+        until_time="2019-10-01",
+    )
+    features = pd.read_csv(tmp_path / "features" / "feature_dataset.csv")
+
+    assert result["feature_sample_count"] == 1
+    assert features["cutoff_time"].tolist() == ["2019-10-01T00:00:00+00:00"]
+    assert features["label"].tolist() == [1]

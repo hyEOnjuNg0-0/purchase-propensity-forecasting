@@ -59,6 +59,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--until-date",
+        type=str,
+        default=None,
+        help=(
+            "이 날짜/시각까지의 이벤트만 feature 생성에 사용한다. "
+            "예: 2019-10-15는 2019-10-15 23:59:59 UTC까지 포함한다."
+        ),
+    )
+    parser.add_argument(
         "--window-minutes",
         type=int,
         default=30,
@@ -93,6 +102,7 @@ def main() -> None:
             args.reports_dir,
             policy=policy,
             chunksize=args.chunksize,
+            until_time=args.until_date,
         )
         feature_sample_count = int(result["feature_sample_count"])
         split_rows = result["split_rows"]
@@ -102,6 +112,7 @@ def main() -> None:
             policy=policy,
             chunksize=args.chunksize,
             max_rows=args.max_rows,
+            until_time=args.until_date,
         )
         build_feature_artifacts(
             features,
@@ -109,6 +120,7 @@ def main() -> None:
             args.reports_dir,
             source_path=args.input,
             max_rows=args.max_rows,
+            until_time=args.until_date,
         )
         feature_sample_count = len(features)
         split_rows = build_split_summary_rows(features)
