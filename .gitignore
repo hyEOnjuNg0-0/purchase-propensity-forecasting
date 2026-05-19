@@ -42,6 +42,7 @@ artifacts/models/
 Agents.md
 docs/*
 !docs/ARCHITECTURE.md
+!docs/PROJECT_DESIGN.md
 !docs/TECHSPEC.md
 *.ipynb_checkpoints/
 
