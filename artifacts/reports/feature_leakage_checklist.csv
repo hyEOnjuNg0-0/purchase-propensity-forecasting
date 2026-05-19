@@ -1,0 +1,8 @@
+check_id,check_name,status,evidence
+raw_user_id_excluded,raw `user_id` 모델 입력 제외,pass,`user_id`는 audit_only로만 정의
+raw_user_session_key_only,`user_session` key 용도 제한,pass,`user_session`은 key로만 정의
+raw_event_time_excluded,원문 `event_time` 모델 입력 제외,pass,`cutoff_time`은 audit_only이며 hour/day/elapsed 파생값만 입력
+prefix_scope,sequence feature 미래 이벤트 제외,pass,session별 누적 prefix accumulator로 기준 시점까지의 이벤트만 저장
+post_purchase_excluded,첫 purchase 이후 sample 제외,pass,첫 purchase 시점과 이후 이벤트는 학습 sample 생성에서 제외
+user_history_scope,사용자 과거 행동 집계 기준 시점 이전 제한,pass,user_past_* feature는 현재 이벤트 처리 전에 계산
+transformer_fit_scope,encoder/scaler fit 범위 train split 제한,pass,`feature_transformer_scope.csv`가 train split 기준 fit 값을 기록

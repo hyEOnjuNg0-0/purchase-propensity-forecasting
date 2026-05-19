@@ -11,6 +11,8 @@ C:\PurchaseTimeForecasting
 |-- app
 |   `-- streamlit_app.py
 |-- artifacts
+|   |-- features
+|   |   `-- feature_dataset.csv
 |   `-- reports
 |       |-- data_quality_extreme_sessions.csv
 |       |-- data_quality_missing_values.csv
@@ -31,12 +33,18 @@ C:\PurchaseTimeForecasting
 |       |-- eda_report.md
 |       |-- eda_sequence_pattern_purchase_rate.csv
 |       |-- eda_session_length_purchase_rate.csv
+|       |-- feature_dictionary.csv
+|       |-- feature_leakage_checklist.csv
+|       |-- feature_report.md
+|       |-- feature_split_summary.csv
+|       |-- feature_transformer_scope.csv
 |       |-- label_distribution.csv
 |       |-- labeling_policy.csv
 |       `-- labeling_report.md
 |-- data
 |   |-- 2019-Oct.csv
 |-- scripts
+|   |-- build_features.py
 |   |-- create_labels.py
 |   |-- run_eda.py
 |   |-- profile_data.py
@@ -48,11 +56,13 @@ C:\PurchaseTimeForecasting
 |       |-- data_quality.py
 |       |-- data_profiling.py
 |       |-- exploratory_analysis.py
+|       |-- feature_engineering.py
 |       `-- labeling.py
 |-- tests
 |   |-- test_data_quality.py
 |   |-- test_data_profiling.py
 |   |-- test_exploratory_analysis.py
+|   |-- test_feature_engineering.py
 |   `-- test_labeling.py
 `-- docs
     |-- ARCHITECTURE.md
@@ -75,5 +85,9 @@ C:\PurchaseTimeForecasting
 - `src/purchase_time_forecasting/exploratory_analysis.py`: Step 4 EDA 및 문제 타당성 검증 핵심 로직이다. 세션 길이, 초기 sequence pattern, 가격대, category, 시간대, positive/negative sample 차이를 첫 purchase 기준 라벨 window로 집계한다.
 - `scripts/run_eda.py`: `ptf` 환경 래퍼로 실행하는 Step 4 CLI 진입점이다.
 - `tests/test_exploratory_analysis.py`: EDA 집계와 artifact 저장 계약을 검증하는 pytest 테스트다.
+- `src/purchase_time_forecasting/feature_engineering.py`: Step 5 Feature Engineering 핵심 로직이다. 기준 시점까지의 prefix 기반 tabular/sequence feature, 사용자 과거 행동 집계 feature, 시간 기반 train/validation/test split, train split 기준 transformer fit 범위 artifact를 생성한다.
+- `scripts/build_features.py`: `ptf` 환경 래퍼로 실행하는 Step 5 CLI 진입점이다. `--max-rows`를 생략하면 전체 원천 CSV를 streaming 방식으로 처리하고, 값을 지정하면 빠른 검증용 부분 feature artifact를 생성한다.
+- `tests/test_feature_engineering.py`: feature prefix 누수 방지, raw ID/model input 분리, train split 기준 encoder/scaler fit 범위, artifact 저장 계약을 검증하는 pytest 테스트다.
 - `pytest.ini`: pytest 임시 파일을 저장소 내부 `.pytest_tmp`에 생성하도록 고정한다.
-- `artifacts/reports`: Step 1/2/3/4 실행 결과를 저장하는 리포트 artifact 디렉터리다.
+- `artifacts/features`: Step 5 feature dataset 생성물 디렉터리다. 대용량 산출물이므로 현재 `.gitignore` 정책상 추적 대상은 아니며 로컬 재생성 대상으로 둔다.
+- `artifacts/reports`: Step 1/2/3/4/5 실행 결과를 저장하는 리포트 artifact 디렉터리다.
