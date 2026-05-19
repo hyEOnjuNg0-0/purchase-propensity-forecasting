@@ -1,0 +1,13 @@
+metric,value
+prediction_window_minutes,30
+candidate_event_count,42448764
+labeled_sample_count,40653641
+positive_count,2753084
+negative_count,37900557
+positive_ratio,0.067720
+negative_ratio,0.932280
+excluded_missing_session_count,2
+excluded_invalid_time_count,0
+excluded_at_or_after_first_purchase_count,1795121
+session_count,9244421
+purchase_session_count,629560

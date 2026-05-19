@@ -1,0 +1,5 @@
+policy,value,description
+prediction_window,30 minutes,기준 시점 이후 window 이내 같은 세션 purchase를 positive로 정의한다.
+cutoff_interval,"(cutoff_time, cutoff_time + window]",기준 시점과 같은 시각의 purchase는 미래 구매로 보지 않는다.
+prefix_feature_scope,events_at_or_before_cutoff,prefix feature는 기준 시점까지 관측된 이벤트만 포함한다.
+purchase_event_policy,exclude_at_or_after_first_purchase,첫 purchase 이벤트와 그 이후 이벤트는 학습 sample에서 제외한다.
