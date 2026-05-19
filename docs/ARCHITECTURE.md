@@ -1,4 +1,4 @@
-# 아키텍처
+﻿# 아키텍처
 
 ```text
 C:\PurchaseTimeForecasting
@@ -17,6 +17,5 @@ C:\PurchaseTimeForecasting
     |-- ARCHITECTURE.md
     |-- PORTFOLIO_EXECUTION_PLAN.md
     |-- PROJECT_DESIGN.md
-    |-- TECHSPEC.md
-    `-- inital_plan.md
+    `-- TECHSPEC.md
 ```
