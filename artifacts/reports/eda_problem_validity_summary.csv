@@ -1,0 +1,11 @@
+metric,value
+source_path,data\2019-Oct.csv
+prediction_window_minutes,30
+analyzed_row_count,2000000
+max_rows,2000000
+session_count,446930
+purchase_session_count,28643
+labeled_sample_count,1919411
+positive_sample_count,115919
+negative_sample_count,1803492
+positive_sample_ratio,0.060393

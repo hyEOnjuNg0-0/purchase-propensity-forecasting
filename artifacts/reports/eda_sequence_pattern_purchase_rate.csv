@@ -1,0 +1,21 @@
+sequence_pattern,session_count,purchase_session_count,purchase_rate
+view,164991,7759,0.047027
+view > view > view > view > view,114680,5806,0.050628
+view > view,76628,3391,0.044253
+view > view > view,45213,1929,0.042665
+view > view > view > view,30431,1155,0.037955
+view > cart,5225,3940,0.754067
+view > view > cart,1441,1049,0.727967
+view > view > view > view > cart,975,491,0.503590
+view > cart > view,876,73,0.083333
+view > cart > cart,816,623,0.763480
+view > view > view > cart,737,550,0.746269
+view > cart > view > view > view,634,135,0.212934
+view > view > view > cart > view,532,101,0.189850
+view > view > cart > view > view,427,94,0.220141
+view > view > view > cart > cart,333,179,0.537538
+view > view > cart > view,316,26,0.082278
+view > cart > view > view,289,32,0.110727
+view > view > cart > cart,254,188,0.740157
+view > cart > cart > cart > cart,249,126,0.506024
+view > view > cart > cart > cart,194,88,0.453608

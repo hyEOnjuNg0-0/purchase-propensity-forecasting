@@ -1,0 +1,3 @@
+label_segment,sample_count,avg_price,view_ratio,cart_ratio,remove_from_cart_ratio,purchase_ratio
+positive,115919,290.909444,0.874637,0.125363,0.000000,0.000000
+negative,1803492,296.222254,0.993071,0.006929,0.000000,0.000000
