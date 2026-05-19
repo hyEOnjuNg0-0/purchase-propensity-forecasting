@@ -1,0 +1,13 @@
+segment,metric,value
+purchase_session,session_count,629560
+purchase_session,avg_event_count,7.532402
+purchase_session,median_event_count,5.0
+purchase_session,avg_duration_minutes,10.979014
+purchase_session,median_duration_minutes,4.133333
+purchase_session,avg_price_per_event,306.982348
+non_purchase_session,session_count,8614861
+non_purchase_session,avg_event_count,4.376932
+non_purchase_session,median_event_count,2.0
+non_purchase_session,avg_duration_minutes,17.831374
+non_purchase_session,median_duration_minutes,0.833333
+non_purchase_session,avg_price_per_event,314.09177

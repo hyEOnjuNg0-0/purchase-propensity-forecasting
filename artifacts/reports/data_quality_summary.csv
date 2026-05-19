@@ -1,0 +1,17 @@
+check_id,check_name,status,evidence,next_action
+schema_required_columns,필수 컬럼 존재 여부,pass,누락 없음,누락 시 원천 데이터 또는 컬럼 매핑을 수정한다.
+event_time_parse,event_time 파싱 가능 여부,pass,0 rows,파싱 실패 row를 원천 값 패턴별로 확인한다.
+event_type_allowed_values,event_type 허용 값 검증,pass,허용 값만 존재,"`view`, `cart`, `remove_from_cart`, `purchase` 외 값은 정책을 결정한다."
+price_positive,price <= 0 이상치 검증,review,"68,673 rows (0.001618)",무료/오류 가격 여부를 확인하고 제외 또는 보정 정책을 정한다.
+duplicate_rows,완전 중복 row 비율,review,"30,220 rows (0.000712)",중복 이벤트가 식별되면 학습 전 제거 여부를 결정한다.
+session_time_order,세션 내 시간 역전 여부,pass,"0 events, 0 sessions",라벨링 전 세션 내 event_time 정렬을 강제한다.
+extreme_session_length,극단적으로 긴 세션 탐색,review,">= 100 events: 2,487 sessions",상위 세션을 확인해 bot성 행동 또는 장기 세션 처리 정책을 정한다.
+missing_event_time,event_time 결측률,pass,0 rows (0.000000),결측률이 높은 feature는 unknown 처리 또는 제외 정책을 정한다.
+missing_event_type,event_type 결측률,pass,0 rows (0.000000),결측률이 높은 feature는 unknown 처리 또는 제외 정책을 정한다.
+missing_product_id,product_id 결측률,pass,0 rows (0.000000),결측률이 높은 feature는 unknown 처리 또는 제외 정책을 정한다.
+missing_category_id,category_id 결측률,pass,0 rows (0.000000),결측률이 높은 feature는 unknown 처리 또는 제외 정책을 정한다.
+missing_category_code,category_code 결측률,review,"13,515,609 rows (0.318398)",결측률이 높은 feature는 unknown 처리 또는 제외 정책을 정한다.
+missing_brand,brand 결측률,review,"6,117,080 rows (0.144105)",결측률이 높은 feature는 unknown 처리 또는 제외 정책을 정한다.
+missing_price,price 결측률,pass,0 rows (0.000000),결측률이 높은 feature는 unknown 처리 또는 제외 정책을 정한다.
+missing_user_id,user_id 결측률,pass,0 rows (0.000000),결측률이 높은 feature는 unknown 처리 또는 제외 정책을 정한다.
+missing_user_session,user_session 결측률,review,2 rows (0.000000),결측률이 높은 feature는 unknown 처리 또는 제외 정책을 정한다.
