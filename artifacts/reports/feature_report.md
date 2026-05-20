@@ -3,9 +3,9 @@
 ## 핵심 요약
 
 - 대상 파일: `C:\PurchaseTimeForecasting\data\2019-Oct.csv`
-- 입력 row 제한: 20,000
-- 종료 일시 필터: 없음
-- feature sample 수: 19,441
+- 입력 row 제한: 없음
+- 종료 일시 필터: 2019-10-10 23:59:59.999999999+00:00
+- feature sample 수: 12,294,147
 - raw `user_id`, `user_session`, `cutoff_time`은 모델 입력에서 제외하고 audit/key 용도로만 유지한다.
 - `sample_id` 기준으로 sample index, tabular feature, sequence feature를 연결한다.
 - sequence feature는 기준 시점까지의 prefix 중 최근 `max_sequence_length`개만 별도 parquet artifact에 저장한다.
@@ -23,6 +23,6 @@
 
 ## Split 요약
 
-- train: 10,503 samples, positive ratio 0.045701
-- validation: 4,281 samples, positive ratio 0.046952
-- test: 4,657 samples, positive ratio 0.024479
+- train: 8,605,918 samples, positive ratio 0.066504
+- validation: 1,844,114 samples, positive ratio 0.065287
+- test: 1,844,115 samples, positive ratio 0.058420
