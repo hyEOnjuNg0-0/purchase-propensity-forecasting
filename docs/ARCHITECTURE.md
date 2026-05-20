@@ -48,6 +48,7 @@ C:\PurchaseTimeForecasting
 |-- scripts
 |   |-- build_features.py
 |   |-- create_labels.py
+|   |-- train_baselines.py
 |   |-- run_eda.py
 |   |-- profile_data.py
 |   |-- validate_data_quality.py
@@ -55,12 +56,14 @@ C:\PurchaseTimeForecasting
 |-- src
 |   `-- purchase_time_forecasting
 |       |-- __init__.py
+|       |-- baseline_modeling.py
 |       |-- data_quality.py
 |       |-- data_profiling.py
 |       |-- exploratory_analysis.py
 |       |-- feature_engineering.py
 |       `-- labeling.py
 |-- tests
+|   |-- test_baseline_modeling.py
 |   |-- test_data_quality.py
 |   |-- test_data_profiling.py
 |   |-- test_exploratory_analysis.py
@@ -95,3 +98,6 @@ C:\PurchaseTimeForecasting
 - `artifacts/features`: Step 5 feature dataset 생성물 디렉터리다. `sample_index.csv`, `tabular_feature_dataset.csv`, `sequence_feature_dataset.parquet`로 모델 공통 sample index와 입력 feature를 분리한다. 대용량 산출물이므로 현재 `.gitignore` 정책상 추적 대상은 아니며 로컬 재생성 대상으로 둔다.
 - `artifacts/reports`: Step 1/2/3/4/5 실행 결과를 저장하는 리포트 artifact 디렉터리다.
 - `docs/FEATURE_ARTIFACT_REFERENCE.md`: `tabular_feature_dataset.csv`와 `sequence_feature_dataset.parquet`의 모델 입력 컬럼 이름과 의미를 정리한 문서다.
+- `src/purchase_time_forecasting/baseline_modeling.py`: Step 7 baseline 모델링 핵심 로직이다. `sample_id` 기준으로 `sample_index.csv`와 `tabular_feature_dataset.csv`를 연결하고, train split 기준 전처리, Logistic Regression 학습, LightGBM 선택 학습, PR-AUC/ROC-AUC/F1/Recall@K/Precision@K 평가, feature importance artifact 생성을 수행한다.
+- `scripts/train_baselines.py`: `ptf` 환경 래퍼로 실행하는 Step 7 CLI 진입점이다. 대용량 artifact 검증을 위해 split별 실제 sample 상한 옵션을 제공하며, 기본 산출물은 `artifacts/reports/model_metrics.csv`, `baseline_feature_importance.csv`, `baseline_model_status.csv`, `baseline_report.md`다.
+- `tests/test_baseline_modeling.py`: baseline dataset join, train split 기준 전처리, metric 계산, Logistic Regression class imbalance 비교, baseline artifact 저장 계약을 검증하는 pytest 테스트다.

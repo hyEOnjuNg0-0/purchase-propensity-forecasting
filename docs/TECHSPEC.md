@@ -19,12 +19,12 @@
 | Parquet 저장 | pyarrow 24.0.0 |
 | 테스트 | pytest 9.0.3 |
 | 대시보드 | Streamlit 1.57.0 |
+| Baseline 모델 | scikit-learn 1.7.2, LightGBM 4.6.0 |
 
 ## 3. 후속 모델링/분석 예정 라이브러리
 
 | 구분 | 라이브러리 |
 | --- | --- |
-| 전통 ML | scikit-learn, LightGBM |
 | 딥러닝 | PyTorch |
 | 평가 | scikit-learn metrics |
 | 차원 축소 | UMAP, scikit-learn t-SNE |
