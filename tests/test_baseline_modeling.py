@@ -176,11 +176,11 @@ def test_compute_binary_metrics_returns_pr_roc_f1_and_top_k_metrics() -> None:
         top_k_fraction=0.5,
     )
 
-    assert metrics["pr_auc"] == "1.000000"
-    assert metrics["roc_auc"] == "1.000000"
-    assert metrics["f1"] == "1.000000"
-    assert metrics["recall_at_k"] == "1.000000"
-    assert metrics["precision_at_k"] == "1.000000"
+    assert metrics["pr_auc"] == 1.0
+    assert metrics["roc_auc"] == 1.0
+    assert metrics["f1"] == 1.0
+    assert metrics["recall_at_k"] == 1.0
+    assert metrics["precision_at_k"] == 1.0
 
 
 def test_train_baseline_models_writes_metrics_and_importance(tmp_path: Path) -> None:
@@ -199,6 +199,7 @@ def test_train_baseline_models_writes_metrics_and_importance(tmp_path: Path) -> 
     assert set(result.metrics["class_imbalance_strategy"]) == {"none", "balanced"}
     assert set(result.metrics["split"]) == {"train", "validation", "test"}
     assert "pr_auc" in result.metrics.columns
+    assert result.metrics["pr_auc"].dtype.kind == "f"
     assert not result.feature_importance.empty
     assert result.feature_importance["feature_name"].notna().all()
 

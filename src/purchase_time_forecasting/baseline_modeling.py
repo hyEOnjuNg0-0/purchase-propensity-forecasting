@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 import numpy as np
 import pandas as pd
@@ -338,7 +338,7 @@ def compute_binary_metrics(
     y_score: Sequence[float],
     threshold: float = 0.5,
     top_k_fraction: float = 0.1,
-) -> dict[str, str]:
+) -> dict[str, float]:
     """binary classification metric을 계산한다."""
 
     y = np.asarray(y_true, dtype=int)
@@ -363,11 +363,11 @@ def compute_binary_metrics(
     precision_at_k = _safe_divide(positives_in_top_k, top_k_count)
 
     return {
-        "pr_auc": _format_metric(_average_precision(y, scores)),
-        "roc_auc": _format_metric(_roc_auc(y, scores)),
-        "f1": _format_metric(f1),
-        "recall_at_k": _format_metric(recall_at_k),
-        "precision_at_k": _format_metric(precision_at_k),
+        "pr_auc": _average_precision(y, scores),
+        "roc_auc": _roc_auc(y, scores),
+        "f1": f1,
+        "recall_at_k": recall_at_k,
+        "precision_at_k": precision_at_k,
     }
 
 
@@ -379,7 +379,11 @@ def write_baseline_artifacts(
 
     output_dir = Path(reports_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    result.metrics.to_csv(output_dir / "model_metrics.csv", index=False, encoding="utf-8")
+    _format_metrics_for_output(result.metrics).to_csv(
+        output_dir / "model_metrics.csv",
+        index=False,
+        encoding="utf-8",
+    )
     result.feature_importance.to_csv(
         output_dir / "baseline_feature_importance.csv",
         index=False,
@@ -432,7 +436,9 @@ def build_baseline_report(
         for row in validation.to_dict("records"):
             lines.append(
                 f"- {row['model_name']} / {row['class_imbalance_strategy']}: "
-                f"PR-AUC {row['pr_auc']}, ROC-AUC {row['roc_auc']}, F1 {row['f1']}"
+                f"PR-AUC {_format_metric(row['pr_auc'])}, "
+                f"ROC-AUC {_format_metric(row['roc_auc'])}, "
+                f"F1 {_format_metric(row['f1'])}"
             )
     lines.append("")
     return "\n".join(lines)
@@ -814,16 +820,24 @@ def _safe_divide(numerator: float, denominator: float) -> float:
 
 
 def _format_metric(value: float) -> str:
-    if np.isnan(value):
+    if pd.isna(value):
         return ""
-    return f"{value:.6f}"
+    return f"{float(value):.6f}"
 
 
-def _empty_metric_values() -> dict[str, str]:
+def _format_metrics_for_output(metrics: pd.DataFrame) -> pd.DataFrame:
+    formatted = metrics.copy()
+    for column in ("pr_auc", "roc_auc", "f1", "recall_at_k", "precision_at_k"):
+        if column in formatted:
+            formatted[column] = formatted[column].map(_format_metric)
+    return formatted
+
+
+def _empty_metric_values() -> dict[str, float]:
     return {
-        "pr_auc": "",
-        "roc_auc": "",
-        "f1": "",
-        "recall_at_k": "",
-        "precision_at_k": "",
+        "pr_auc": np.nan,
+        "roc_auc": np.nan,
+        "f1": np.nan,
+        "recall_at_k": np.nan,
+        "precision_at_k": np.nan,
     }
