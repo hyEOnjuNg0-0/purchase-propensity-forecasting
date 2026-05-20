@@ -8,6 +8,7 @@
 - feature sample 수: 12,294,147
 - raw `user_id`, `user_session`, `cutoff_time`은 모델 입력에서 제외하고 audit/key 용도로만 유지한다.
 - `sample_id` 기준으로 sample index, tabular feature, sequence feature를 연결한다.
+- tabular artifact는 baseline 해석성을 위해 핵심 feature set만 유지한다.
 - sequence feature는 기준 시점까지의 prefix 중 최근 `max_sequence_length`개만 별도 parquet artifact에 저장한다.
 - encoder/scaler fit 범위는 train split으로 제한한다.
 

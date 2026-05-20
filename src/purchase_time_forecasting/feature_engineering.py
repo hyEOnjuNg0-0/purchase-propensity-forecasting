@@ -1485,29 +1485,21 @@ def _sequence_artifact_columns() -> list[str]:
 
 def _tabular_input_columns() -> list[str]:
     return [
-        "session_position",
         "prefix_length",
         "last_event_type",
         "session_elapsed_minutes",
         "time_since_previous_event_minutes",
         "hour",
-        "day_of_week",
         "event_count_view",
         "event_count_cart",
         "event_count_remove_from_cart",
-        "event_count_purchase",
         "unique_product_count",
         "unique_category_count",
-        "unique_brand_count",
-        "avg_price",
-        "max_price",
         "last_price",
         "last_price_bin",
         "user_past_event_count",
-        "user_past_session_count",
         "user_past_purchase_count",
         "user_past_cart_count",
-        "user_minutes_since_last_event",
     ]
 
 

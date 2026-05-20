@@ -94,4 +94,4 @@ C:\PurchaseTimeForecasting
 - `pytest.ini`: pytest 임시 파일을 저장소 내부 `.pytest_tmp`에 생성하도록 고정한다.
 - `artifacts/features`: Step 5 feature dataset 생성물 디렉터리다. `sample_index.csv`, `tabular_feature_dataset.csv`, `sequence_feature_dataset.parquet`로 모델 공통 sample index와 입력 feature를 분리한다. 대용량 산출물이므로 현재 `.gitignore` 정책상 추적 대상은 아니며 로컬 재생성 대상으로 둔다.
 - `artifacts/reports`: Step 1/2/3/4/5 실행 결과를 저장하는 리포트 artifact 디렉터리다.
-- `docs/FEATURE_ARTIFACT_REFERENCE.md`: Step 6 검증 대상인 `feature_split_summary.csv`와 `sequence_feature_dataset.parquet`의 컬럼 이름, 의미, 사용 기준을 정리한 문서다.
+- `docs/FEATURE_ARTIFACT_REFERENCE.md`: `tabular_feature_dataset.csv`와 `sequence_feature_dataset.parquet`의 모델 입력 컬럼 이름과 의미를 정리한 문서다.

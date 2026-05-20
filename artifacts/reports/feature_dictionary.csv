@@ -6,29 +6,21 @@ cutoff_time,time,datetime,audit_only,"원문 timestamp는 모델 입력 제외, 
 split,split,string,audit_only,시간 기준 split 검증용
 label,target,integer,target,향후 window 내 purchase 여부
 minutes_until_purchase,target_diagnostic,float,audit_only,평가/오류 분석용이며 학습 입력 제외
-session_position,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 prefix_length,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 last_event_type,tabular,category,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 session_elapsed_minutes,tabular,float,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 time_since_previous_event_minutes,tabular,float,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 hour,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
-day_of_week,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 event_count_view,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 event_count_cart,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 event_count_remove_from_cart,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
-event_count_purchase,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 unique_product_count,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 unique_category_count,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
-unique_brand_count,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
-avg_price,tabular,float,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
-max_price,tabular,float,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 last_price,tabular,float,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 last_price_bin,tabular,category,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 user_past_event_count,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
-user_past_session_count,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 user_past_purchase_count,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 user_past_cart_count,tabular,integer,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
-user_minutes_since_last_event,tabular,float,tabular_input,기준 시점까지 관측된 prefix 또는 기준 시점 이전 사용자 이력만 사용
 event_type_sequence,sequence,string_sequence,sequence_input,기준 시점까지의 prefix sequence만 사용
 product_id_sequence,sequence,string_sequence,sequence_input,기준 시점까지의 prefix sequence만 사용
 category_id_sequence,sequence,string_sequence,sequence_input,기준 시점까지의 prefix sequence만 사용

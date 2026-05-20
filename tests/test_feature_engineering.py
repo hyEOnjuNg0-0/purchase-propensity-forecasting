@@ -270,6 +270,24 @@ def test_feature_artifact_builders_share_sample_id_and_split_model_inputs() -> N
     assert {"user_id", "user_session", "cutoff_time", "label", "split"}.isdisjoint(
         tabular.columns
     )
+    assert tabular.columns.tolist() == [
+        "sample_id",
+        "prefix_length",
+        "last_event_type",
+        "session_elapsed_minutes",
+        "time_since_previous_event_minutes",
+        "hour",
+        "event_count_view",
+        "event_count_cart",
+        "event_count_remove_from_cart",
+        "unique_product_count",
+        "unique_category_count",
+        "last_price",
+        "last_price_bin",
+        "user_past_event_count",
+        "user_past_purchase_count",
+        "user_past_cart_count",
+    ]
     assert sequence["event_type_sequence"].tolist() == ["view", "view cart", "cart view"]
 
 
