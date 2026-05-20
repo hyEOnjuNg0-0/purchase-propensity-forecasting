@@ -71,10 +71,10 @@ def render_figure(title: str, path: Path) -> bool:
 
 def main() -> None:
     st.set_page_config(
-        page_title="Purchase Time Forecasting",
+        page_title="Purchase Propensity Forecasting",
         layout="wide",
     )
-    st.title("Purchase Time Forecasting")
+    st.title("Purchase Propensity Forecasting")
     st.caption("사용자 행동 시퀀스 기반 향후 30분 내 구매 예측 포트폴리오")
 
     rendered = False

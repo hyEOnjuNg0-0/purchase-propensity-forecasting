@@ -1,2 +1,1 @@
-"""Purchase Time Forecasting 분석 패키지."""
-
+"""Purchase Propensity Forecasting 분석 패키지."""

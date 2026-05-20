@@ -1,6 +1,6 @@
 # 프로젝트 설계서
 
-이 문서는 Purchase Time Forecasting 프로젝트의 문제 정의, 데이터 검증, 라벨링, feature 설계, 모델링 전략, 평가 설계, 해석 계획을 정의한다.
+이 문서는 Purchase Propensity Forecasting 프로젝트의 문제 정의, 데이터 검증, 라벨링, feature 설계, 모델링 전략, 평가 설계, 해석 계획을 정의한다.
 
 ## 1. 프로젝트 개요
 
