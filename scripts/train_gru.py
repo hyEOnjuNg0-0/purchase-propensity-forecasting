@@ -1,4 +1,4 @@
-"""Step 9 최소 GRU 모델 학습 실행 스크립트."""
+"""Step 9 GRU 모델 학습 실행 스크립트."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from purchase_time_forecasting.sequence_modeling import (  # noqa: E402
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Step 9 event type sequence 기반 최소 GRU 모델을 학습한다."
+        description="Step 9 sequence feature artifact 전체를 사용하는 GRU 모델을 학습한다."
     )
     parser.add_argument(
         "--features-dir",
@@ -48,13 +48,13 @@ def parse_args() -> argparse.Namespace:
         "--max-sequence-length",
         type=int,
         default=50,
-        help="GRU 입력에 사용할 최근 event type sequence 최대 길이",
+        help="GRU 입력에 사용할 최근 sequence feature 최대 길이",
     )
     parser.add_argument(
         "--embedding-dim",
         type=int,
         default=8,
-        help="event type embedding 차원",
+        help="categorical sequence feature별 embedding 차원",
     )
     parser.add_argument(
         "--hidden-dim",

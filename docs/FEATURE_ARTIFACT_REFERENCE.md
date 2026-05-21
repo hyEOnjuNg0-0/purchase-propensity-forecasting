@@ -38,6 +38,8 @@ GRU, SASRec 같은 sequence model 입력용 feature다. sequence는 `--max-seque
 | `price_bin_sequence` | string sequence | 기준 시점까지의 가격 구간 sequence |
 | `time_gap_minutes_sequence` | string sequence | 기준 시점까지의 이벤트 간 시간 간격 sequence |
 
+Step 9 GRU 모델은 위 sequence 입력 컬럼 전체를 사용한다. `event_type_sequence`, `product_id_sequence`, `category_id_sequence`, `price_bin_sequence`는 train split에서 fit한 vocabulary로 embedding index를 만들고, `time_gap_minutes_sequence`는 train split에서 fit한 `log1p` 표준화 값으로 GRU 입력에 결합한다.
+
 ## 학습 입력 제외 컬럼
 
 아래 컬럼은 artifact 연결, 평가, audit 용도로만 사용하며 모델 입력 feature로 학습하지 않는다.

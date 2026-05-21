@@ -1,4 +1,4 @@
-"""Step 9 최소 GRU sequence 모델 학습 유스케이스."""
+"""Step 9 GRU sequence 모델 학습 유스케이스."""
 
 from __future__ import annotations
 
@@ -22,6 +22,14 @@ from purchase_time_forecasting.feature_engineering import (
 PAD_TOKEN = "<pad>"
 UNKNOWN_TOKEN = "<unknown>"
 SPLITS = ("train", "validation", "test")
+SEQUENCE_CATEGORICAL_COLUMNS = (
+    "event_type_sequence",
+    "product_id_sequence",
+    "category_id_sequence",
+    "price_bin_sequence",
+)
+SEQUENCE_NUMERIC_COLUMNS = ("time_gap_minutes_sequence",)
+SEQUENCE_INPUT_COLUMNS = (*SEQUENCE_CATEGORICAL_COLUMNS, *SEQUENCE_NUMERIC_COLUMNS)
 ProgressCallback = Callable[[str], None]
 
 
@@ -35,7 +43,7 @@ class SequenceDatasetPolicy:
 
 @dataclass(frozen=True)
 class GruTrainingPolicy:
-    """개인 과제 범위의 최소 GRU 학습 정책."""
+    """GRU 학습 정책."""
 
     max_sequence_length: int = 50
     embedding_dim: int = 8
@@ -56,7 +64,7 @@ class GruTrainingPolicy:
 
 @dataclass(frozen=True)
 class EventTypeVocabulary:
-    """event type token을 embedding index로 변환하는 vocabulary."""
+    """sequence token을 embedding index로 변환하는 vocabulary."""
 
     token_to_id: dict[str, int]
     pad_token: str = PAD_TOKEN
@@ -82,14 +90,17 @@ class EventTypeVocabulary:
 
 @dataclass(frozen=True)
 class GruEventTypeDataset:
-    """GRU classifier 학습과 평가에 필요한 event type 입력 묶음."""
+    """GRU classifier 학습과 평가에 필요한 sequence 입력 묶음."""
 
     sample_ids: np.ndarray
     splits: np.ndarray
     labels: np.ndarray
-    event_type_token_ids: np.ndarray
+    categorical_token_ids: np.ndarray
+    time_gap_values: np.ndarray
     sequence_lengths: np.ndarray
-    vocabulary: EventTypeVocabulary
+    vocabularies: dict[str, EventTypeVocabulary]
+    time_gap_scaler: TimeGapScaler
+    categorical_columns: tuple[str, ...] = SEQUENCE_CATEGORICAL_COLUMNS
 
     @property
     def sample_count(self) -> int:
@@ -97,14 +108,41 @@ class GruEventTypeDataset:
 
     @property
     def max_sequence_length(self) -> int:
-        if self.event_type_token_ids.ndim != 2:
+        if self.categorical_token_ids.ndim != 3:
             return 0
-        return int(self.event_type_token_ids.shape[1])
+        return int(self.categorical_token_ids.shape[1])
+
+    @property
+    def vocabulary(self) -> EventTypeVocabulary:
+        """기존 event type 전용 테스트/스크립트 호환용 vocabulary 접근자."""
+
+        return self.vocabularies["event_type_sequence"]
+
+    @property
+    def event_type_token_ids(self) -> np.ndarray:
+        """기존 event type 전용 테스트/스크립트 호환용 token 배열 접근자."""
+
+        return self.categorical_token_ids[:, :, self.categorical_columns.index("event_type_sequence")]
 
     def split_mask(self, split: str) -> np.ndarray:
         """특정 split sample을 선택하는 boolean mask를 반환한다."""
 
         return self.splits.astype(str) == split
+
+
+@dataclass(frozen=True)
+class TimeGapScaler:
+    """time gap sequence를 train split 기준으로 log1p 표준화하는 scaler."""
+
+    mean: float
+    std: float
+
+    def transform(self, values: Iterable[object]) -> list[float]:
+        transformed = []
+        for value in values:
+            numeric_value = _parse_non_negative_float(value)
+            transformed.append((np.log1p(numeric_value) - self.mean) / self.std)
+        return transformed
 
 
 @dataclass(frozen=True)
@@ -124,31 +162,37 @@ def build_event_type_vocabulary(
 ) -> EventTypeVocabulary:
     """train split의 event type sequence만 사용해 vocabulary를 fit한다."""
 
+    return build_sequence_vocabularies(
+        sample_index,
+        sequence_features,
+        policy=policy,
+    )["event_type_sequence"]
+
+
+def build_sequence_vocabularies(
+    sample_index: pd.DataFrame,
+    sequence_features: pd.DataFrame,
+    policy: SequenceDatasetPolicy | None = None,
+) -> dict[str, EventTypeVocabulary]:
+    """train split의 categorical sequence만 사용해 feature별 vocabulary를 fit한다."""
+
     active_policy = policy or SequenceDatasetPolicy()
     _validate_policy(active_policy)
     joined = _join_sequence_inputs(sample_index, sequence_features)
-    train = joined.loc[joined["split"].astype(str).eq(active_policy.fit_split)]
-    observed_tokens: set[str] = set()
-    for value in train["event_type_sequence"]:
-        observed_tokens.update(_parse_sequence(value))
+    return _build_sequence_vocabularies_from_joined(joined, active_policy)
 
-    ordered_tokens = [
-        token
-        for token in EVENT_TYPES
-        if token in observed_tokens and token not in {PAD_TOKEN, UNKNOWN_TOKEN}
-    ]
-    extra_tokens = sorted(
-        observed_tokens - set(ordered_tokens) - {PAD_TOKEN, UNKNOWN_TOKEN}
-    )
-    token_to_id = {
-        PAD_TOKEN: 0,
-        UNKNOWN_TOKEN: 1,
-        **{
-            token: index
-            for index, token in enumerate([*ordered_tokens, *extra_tokens], start=2)
-        },
-    }
-    return EventTypeVocabulary(token_to_id=token_to_id)
+
+def fit_time_gap_scaler(
+    sample_index: pd.DataFrame,
+    sequence_features: pd.DataFrame,
+    policy: SequenceDatasetPolicy | None = None,
+) -> TimeGapScaler:
+    """train split의 time gap sequence만 사용해 log1p 표준화 scaler를 fit한다."""
+
+    active_policy = policy or SequenceDatasetPolicy()
+    _validate_policy(active_policy)
+    joined = _join_sequence_inputs(sample_index, sequence_features)
+    return _fit_time_gap_scaler_from_joined(joined, active_policy)
 
 
 def build_gru_event_type_dataset(
@@ -157,35 +201,64 @@ def build_gru_event_type_dataset(
     policy: SequenceDatasetPolicy | None = None,
     vocabulary: EventTypeVocabulary | None = None,
 ) -> GruEventTypeDataset:
-    """event type sequence 중심의 GRU 입력 dataset을 생성한다."""
+    """sequence artifact의 모든 모델 입력 컬럼으로 GRU 입력 dataset을 생성한다."""
 
     active_policy = policy or SequenceDatasetPolicy()
     _validate_policy(active_policy)
     joined = _join_sequence_inputs(sample_index, sequence_features)
-    active_vocabulary = vocabulary or build_event_type_vocabulary(
-        sample_index,
-        sequence_features,
-        policy=active_policy,
+    active_vocabularies = _build_sequence_vocabularies_from_joined(
+        joined,
+        active_policy,
     )
+    if vocabulary is not None:
+        active_vocabularies = {
+            **active_vocabularies,
+            "event_type_sequence": vocabulary,
+        }
+    active_time_gap_scaler = _fit_time_gap_scaler_from_joined(joined, active_policy)
 
-    encoded_rows = [
-        _encode_and_pad(
-            value,
-            vocabulary=active_vocabulary,
-            max_sequence_length=active_policy.max_sequence_length,
+    categorical_arrays = []
+    for column in SEQUENCE_CATEGORICAL_COLUMNS:
+        encoded_rows = [
+            _encode_and_pad(
+                value,
+                vocabulary=active_vocabularies[column],
+                max_sequence_length=active_policy.max_sequence_length,
+            )
+            for value in joined[column]
+        ]
+        categorical_arrays.append(
+            np.asarray([row[0] for row in encoded_rows], dtype=np.int64)
         )
-        for value in joined["event_type_sequence"]
-    ]
-    token_ids = np.asarray([row[0] for row in encoded_rows], dtype=np.int64)
-    lengths = np.asarray([row[1] for row in encoded_rows], dtype=np.int64)
+    categorical_token_ids = np.stack(categorical_arrays, axis=2)
+    lengths = np.asarray(
+        [
+            _sequence_length(value, active_policy.max_sequence_length)
+            for value in joined["event_type_sequence"]
+        ],
+        dtype=np.int64,
+    )
+    time_gap_values = np.asarray(
+        [
+            _encode_time_gap_sequence(
+                value,
+                scaler=active_time_gap_scaler,
+                max_sequence_length=active_policy.max_sequence_length,
+            )
+            for value in joined["time_gap_minutes_sequence"]
+        ],
+        dtype=np.float32,
+    )
 
     return GruEventTypeDataset(
         sample_ids=joined["sample_id"].astype(str).to_numpy(),
         splits=joined["split"].astype(str).to_numpy(),
         labels=joined["label"].astype(int).to_numpy(dtype=np.int64),
-        event_type_token_ids=token_ids,
+        categorical_token_ids=categorical_token_ids,
+        time_gap_values=time_gap_values,
         sequence_lengths=lengths,
-        vocabulary=active_vocabulary,
+        vocabularies=active_vocabularies,
+        time_gap_scaler=active_time_gap_scaler,
     )
 
 
@@ -194,7 +267,7 @@ def load_gru_event_type_dataset(
     policy: SequenceDatasetPolicy | None = None,
     max_samples_per_split: int | None = None,
 ) -> GruEventTypeDataset:
-    """Step 5 feature artifact에서 GRU event type dataset을 로드한다."""
+    """Step 5 feature artifact에서 GRU sequence dataset을 로드한다."""
 
     feature_dir = Path(features_dir)
     sample_index = pd.read_csv(feature_dir / "sample_index.csv")
@@ -224,7 +297,7 @@ def train_gru_classifier(
     policy: GruTrainingPolicy | None = None,
     progress_callback: ProgressCallback | None = None,
 ) -> GruTrainingResult:
-    """event type sequence 기반 GRU classifier를 학습하고 평가한다."""
+    """sequence feature 기반 GRU classifier를 학습하고 평가한다."""
 
     active_policy = policy or GruTrainingPolicy(
         max_sequence_length=dataset.max_sequence_length
@@ -242,11 +315,18 @@ def train_gru_classifier(
     device = _resolve_torch_device(active_policy.device)
     _progress(progress_callback, f"GRU 학습 device 설정: {device}")
 
-    model = _GruEventTypeClassifier(
-        vocabulary_size=len(dataset.vocabulary.token_to_id),
+    model = _GruSequenceClassifier(
+        vocabulary_sizes={
+            column: len(vocabulary.token_to_id)
+            for column, vocabulary in dataset.vocabularies.items()
+        },
         embedding_dim=active_policy.embedding_dim,
         hidden_dim=active_policy.hidden_dim,
-        pad_id=dataset.vocabulary.pad_id,
+        pad_ids={
+            column: vocabulary.pad_id
+            for column, vocabulary in dataset.vocabularies.items()
+        },
+        categorical_columns=dataset.categorical_columns,
     ).to(device)
     train_labels = dataset.labels[dataset.split_mask("train")]
     loss = nn.BCEWithLogitsLoss(
@@ -401,12 +481,12 @@ def build_gru_report(
     """GRU 결과 markdown 리포트를 생성한다."""
 
     lines = [
-        "# Step 9 Minimal GRU Model",
+        "# Step 9 GRU Sequence Model",
         "",
         "## 핵심 요약",
         "",
         "- 입력 artifact: `sample_index.csv`, `sequence_feature_dataset.parquet`",
-        "- 첫 구현은 event type sequence만 사용한다.",
+        "- 입력 feature: `event_type_sequence`, `product_id_sequence`, `category_id_sequence`, `price_bin_sequence`, `time_gap_minutes_sequence`",
         "- `sample_id`, `label`, `split`은 baseline과 동일 계약을 따른다.",
         "",
         "## 모델 상태",
@@ -458,7 +538,7 @@ def _join_sequence_inputs(
     sequence_features: pd.DataFrame,
 ) -> pd.DataFrame:
     sample_required = {"sample_id", "split", "label"}
-    sequence_required = {"sample_id", "event_type_sequence"}
+    sequence_required = {"sample_id", *SEQUENCE_INPUT_COLUMNS}
     missing_sample = sample_required - set(sample_index.columns)
     missing_sequence = sequence_required - set(sequence_features.columns)
     if missing_sample:
@@ -473,7 +553,7 @@ def _join_sequence_inputs(
     if sequence_features["sample_id"].duplicated().any():
         raise ValueError("sequence_feature_dataset sample_id는 고유해야 한다.")
 
-    joined = sequence_features.loc[:, ["sample_id", "event_type_sequence"]].merge(
+    joined = sequence_features.loc[:, ["sample_id", *SEQUENCE_INPUT_COLUMNS]].merge(
         sample_index.loc[:, ["sample_id", "split", "label"]],
         on="sample_id",
         how="inner",
@@ -516,6 +596,49 @@ def _encode_and_pad(
     return padded, length
 
 
+def _build_sequence_vocabularies_from_joined(
+    joined: pd.DataFrame,
+    policy: SequenceDatasetPolicy,
+) -> dict[str, EventTypeVocabulary]:
+    train = joined.loc[joined["split"].astype(str).eq(policy.fit_split)]
+    return {
+        column: _build_vocabulary_for_column(train[column], column)
+        for column in SEQUENCE_CATEGORICAL_COLUMNS
+    }
+
+
+def _fit_time_gap_scaler_from_joined(
+    joined: pd.DataFrame,
+    policy: SequenceDatasetPolicy,
+) -> TimeGapScaler:
+    train = joined.loc[joined["split"].astype(str).eq(policy.fit_split)]
+    values: list[float] = []
+    for sequence in train["time_gap_minutes_sequence"]:
+        values.extend(
+            np.log1p(_parse_non_negative_float(token))
+            for token in _parse_sequence(sequence)[-policy.max_sequence_length:]
+        )
+    if not values:
+        return TimeGapScaler(mean=0.0, std=1.0)
+    mean = float(np.mean(values))
+    std = float(np.std(values))
+    return TimeGapScaler(mean=mean, std=std if std > 0 else 1.0)
+
+
+def _encode_time_gap_sequence(
+    value: object,
+    scaler: TimeGapScaler,
+    max_sequence_length: int,
+) -> list[float]:
+    tokens = _parse_sequence(value)[-max_sequence_length:]
+    transformed = scaler.transform(tokens)
+    return transformed + [0.0] * (max_sequence_length - len(transformed))
+
+
+def _sequence_length(value: object, max_sequence_length: int) -> int:
+    return min(len(_parse_sequence(value)), max_sequence_length)
+
+
 def _parse_sequence(value: object) -> list[str]:
     if value is None or pd.isna(value):
         return []
@@ -524,6 +647,45 @@ def _parse_sequence(value: object) -> list[str]:
         for token in str(value).split(SEQUENCE_DELIMITER)
         if token
     ]
+
+
+def _parse_non_negative_float(value: object) -> float:
+    numeric = pd.to_numeric(value, errors="coerce")
+    if pd.isna(numeric):
+        return 0.0
+    return max(float(numeric), 0.0)
+
+
+def _build_vocabulary_for_column(
+    values: pd.Series,
+    column: str,
+) -> EventTypeVocabulary:
+    observed_tokens: set[str] = set()
+    for value in values:
+        observed_tokens.update(_parse_sequence(value))
+
+    if column == "event_type_sequence":
+        ordered_tokens = [
+            token
+            for token in EVENT_TYPES
+            if token in observed_tokens and token not in {PAD_TOKEN, UNKNOWN_TOKEN}
+        ]
+        extra_tokens = sorted(
+            observed_tokens - set(ordered_tokens) - {PAD_TOKEN, UNKNOWN_TOKEN}
+        )
+    else:
+        ordered_tokens = []
+        extra_tokens = sorted(observed_tokens - {PAD_TOKEN, UNKNOWN_TOKEN})
+
+    token_to_id = {
+        PAD_TOKEN: 0,
+        UNKNOWN_TOKEN: 1,
+        **{
+            token: index
+            for index, token in enumerate([*ordered_tokens, *extra_tokens], start=2)
+        },
+    }
+    return EventTypeVocabulary(token_to_id=token_to_id)
 
 
 def _validate_policy(policy: SequenceDatasetPolicy) -> None:
@@ -567,8 +729,14 @@ def _resolve_torch_device(device_name: str) -> torch.device:
 def _validate_gru_dataset(dataset: GruEventTypeDataset) -> None:
     if dataset.sample_count == 0:
         raise ValueError("GRU dataset이 비어 있다.")
-    if dataset.event_type_token_ids.ndim != 2:
-        raise ValueError("event_type_token_ids는 2차원 배열이어야 한다.")
+    if dataset.categorical_token_ids.ndim != 3:
+        raise ValueError("categorical_token_ids는 3차원 배열이어야 한다.")
+    if dataset.time_gap_values.ndim != 2:
+        raise ValueError("time_gap_values는 2차원 배열이어야 한다.")
+    if dataset.categorical_token_ids.shape[:2] != dataset.time_gap_values.shape:
+        raise ValueError("categorical_token_ids와 time_gap_values의 sample/sequence 길이가 다르다.")
+    if dataset.categorical_token_ids.shape[2] != len(dataset.categorical_columns):
+        raise ValueError("categorical_token_ids의 feature 수가 categorical_columns와 다르다.")
     if len(dataset.labels) != dataset.sample_count:
         raise ValueError("labels 길이가 sample 수와 다르다.")
     if len(dataset.sequence_lengths) != dataset.sample_count:
@@ -587,38 +755,51 @@ def _build_torch_loader(
     shuffle: bool,
 ):
     mask = dataset.split_mask(split)
-    token_ids = torch.as_tensor(dataset.event_type_token_ids[mask], dtype=torch.long)
+    categorical_ids = torch.as_tensor(dataset.categorical_token_ids[mask], dtype=torch.long)
+    time_gap_values = torch.as_tensor(dataset.time_gap_values[mask], dtype=torch.float32)
     lengths = torch.as_tensor(dataset.sequence_lengths[mask], dtype=torch.long)
     labels = torch.as_tensor(dataset.labels[mask], dtype=torch.float32)
-    tensor_dataset = data.TensorDataset(token_ids, lengths, labels)
+    tensor_dataset = data.TensorDataset(categorical_ids, time_gap_values, lengths, labels)
     return data.DataLoader(tensor_dataset, batch_size=batch_size, shuffle=shuffle)
 
 
-class _GruEventTypeClassifier(nn.Module):
-    """event type sequence만 사용하는 최소 GRU classifier."""
+class _GruSequenceClassifier(nn.Module):
+    """categorical sequence embedding과 numeric time gap을 함께 사용하는 GRU classifier."""
 
     def __init__(
         self,
-        vocabulary_size: int,
+        vocabulary_sizes: dict[str, int],
         embedding_dim: int,
         hidden_dim: int,
-        pad_id: int,
+        pad_ids: dict[str, int],
+        categorical_columns: tuple[str, ...],
     ) -> None:
         super().__init__()
-        self.embedding = nn.Embedding(
-            vocabulary_size,
-            embedding_dim,
-            padding_idx=pad_id,
+        self.categorical_columns = categorical_columns
+        self.embeddings = nn.ModuleDict(
+            {
+                column: nn.Embedding(
+                    vocabulary_sizes[column],
+                    embedding_dim,
+                    padding_idx=pad_ids[column],
+                )
+                for column in categorical_columns
+            }
         )
         self.gru = nn.GRU(
-            input_size=embedding_dim,
+            input_size=(embedding_dim * len(categorical_columns)) + 1,
             hidden_size=hidden_dim,
             batch_first=True,
         )
         self.classifier = nn.Linear(hidden_dim, 1)
 
-    def forward(self, token_ids, lengths):
-        embedded = self.embedding(token_ids)
+    def forward(self, categorical_ids, time_gap_values, lengths):
+        embedded_parts = [
+            self.embeddings[column](categorical_ids[:, :, index])
+            for index, column in enumerate(self.categorical_columns)
+        ]
+        numeric_part = time_gap_values.unsqueeze(-1)
+        embedded = torch.cat([*embedded_parts, numeric_part], dim=2)
         clamped_lengths = torch.clamp(lengths.cpu(), min=1)
         packed = nn.utils.rnn.pack_padded_sequence(
             embedded,
@@ -650,12 +831,13 @@ def _train_one_epoch(
     model.train()
     total_loss = 0.0
     total_count = 0
-    for token_ids, lengths, labels in loader:
-        token_ids = token_ids.to(device)
+    for categorical_ids, time_gap_values, lengths, labels in loader:
+        categorical_ids = categorical_ids.to(device)
+        time_gap_values = time_gap_values.to(device)
         lengths = lengths.to(device)
         labels = labels.to(device)
         optimizer.zero_grad()
-        logits = model(token_ids, lengths)
+        logits = model(categorical_ids, time_gap_values, lengths)
         loss = loss_function(logits, labels)
         loss.backward()
         optimizer.step()
@@ -673,10 +855,11 @@ def _predict_scores(
     model.eval()
     scores: list[np.ndarray] = []
     with torch.no_grad():
-        for token_ids, lengths, _ in loader:
-            token_ids = token_ids.to(device)
+        for categorical_ids, time_gap_values, lengths, _ in loader:
+            categorical_ids = categorical_ids.to(device)
+            time_gap_values = time_gap_values.to(device)
             lengths = lengths.to(device)
-            logits = model(token_ids, lengths)
+            logits = model(categorical_ids, time_gap_values, lengths)
             batch_scores = torch.sigmoid(logits).detach().cpu().numpy()
             scores.append(batch_scores)
     if not scores:
@@ -695,8 +878,13 @@ def _split_summary_message(dataset: GruEventTypeDataset) -> str:
 
 
 def _training_detail(dataset: GruEventTypeDataset, policy: GruTrainingPolicy) -> str:
+    vocab_detail = ", ".join(
+        f"{column}={len(vocabulary.token_to_id)}"
+        for column, vocabulary in dataset.vocabularies.items()
+    )
     return (
-        f"event_type_only, vocab_size={len(dataset.vocabulary.token_to_id)}, "
+        f"sequence_features={'+'.join(SEQUENCE_INPUT_COLUMNS)}, "
+        f"vocab_size=({vocab_detail}), "
         f"max_sequence_length={dataset.max_sequence_length}, "
         f"embedding_dim={policy.embedding_dim}, hidden_dim={policy.hidden_dim}, "
         f"epochs={policy.epochs}, batch_size={policy.batch_size}, "

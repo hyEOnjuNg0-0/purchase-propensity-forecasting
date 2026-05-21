@@ -13,6 +13,7 @@ import pandas as pd  # noqa: E402
 
 from purchase_time_forecasting.sequence_modeling import (  # noqa: E402
     PAD_TOKEN,
+    SEQUENCE_CATEGORICAL_COLUMNS,
     UNKNOWN_TOKEN,
     EventTypeVocabulary,
     GruTrainingPolicy,
@@ -39,10 +40,38 @@ def _sample_index() -> pd.DataFrame:
 def _sequence_features() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"sample_id": "s1", "event_type_sequence": "view"},
-            {"sample_id": "s2", "event_type_sequence": "view cart remove_from_cart"},
-            {"sample_id": "s3", "event_type_sequence": "view purchase"},
-            {"sample_id": "s4", "event_type_sequence": "view cart purchase"},
+            {
+                "sample_id": "s1",
+                "event_type_sequence": "view",
+                "product_id_sequence": "p1",
+                "category_id_sequence": "c1",
+                "price_bin_sequence": "low",
+                "time_gap_minutes_sequence": "0.000000",
+            },
+            {
+                "sample_id": "s2",
+                "event_type_sequence": "view cart remove_from_cart",
+                "product_id_sequence": "p1 p2 p3",
+                "category_id_sequence": "c1 c2 c3",
+                "price_bin_sequence": "low mid high",
+                "time_gap_minutes_sequence": "0.000000 5.000000 7.000000",
+            },
+            {
+                "sample_id": "s3",
+                "event_type_sequence": "view purchase",
+                "product_id_sequence": "p4 p5",
+                "category_id_sequence": "c4 c5",
+                "price_bin_sequence": "premium premium",
+                "time_gap_minutes_sequence": "0.000000 3.000000",
+            },
+            {
+                "sample_id": "s4",
+                "event_type_sequence": "view cart purchase",
+                "product_id_sequence": "p1 p2 p6",
+                "category_id_sequence": "c1 c2 c6",
+                "price_bin_sequence": "low mid premium",
+                "time_gap_minutes_sequence": "0.000000 4.000000 8.000000",
+            },
         ]
     )
 
@@ -70,6 +99,9 @@ def test_gru_event_type_dataset_pads_sequences_and_links_labels() -> None:
     assert dataset.sample_ids.tolist() == ["s1", "s2", "s3", "s4"]
     assert dataset.labels.tolist() == [0, 1, 0, 1]
     assert dataset.sequence_lengths.tolist() == [1, 2, 2, 2]
+    assert dataset.categorical_columns == SEQUENCE_CATEGORICAL_COLUMNS
+    assert dataset.categorical_token_ids.shape == (4, 2, 4)
+    assert dataset.time_gap_values.shape == (4, 2)
     assert dataset.event_type_token_ids[0].tolist() == [
         dataset.vocabulary.token_to_id["view"],
         dataset.vocabulary.pad_id,
@@ -81,6 +113,12 @@ def test_gru_event_type_dataset_pads_sequences_and_links_labels() -> None:
     assert dataset.event_type_token_ids[2].tolist() == [
         dataset.vocabulary.token_to_id["view"],
         dataset.vocabulary.unknown_id,
+    ]
+    product_vocab = dataset.vocabularies["product_id_sequence"]
+    product_feature_index = dataset.categorical_columns.index("product_id_sequence")
+    assert dataset.categorical_token_ids[2, :, product_feature_index].tolist() == [
+        product_vocab.unknown_id,
+        product_vocab.unknown_id,
     ]
 
 
@@ -126,6 +164,8 @@ def test_load_gru_event_type_dataset_reads_feature_artifacts(tmp_path: Path) -> 
 
     assert dataset.sample_ids.tolist() == ["s1", "s2", "s3", "s4"]
     assert dataset.event_type_token_ids.shape == (4, 2)
+    assert dataset.categorical_token_ids.shape == (4, 2, 4)
+    assert dataset.time_gap_values.shape == (4, 2)
 
 
 def test_gru_event_type_dataset_requires_matching_sample_ids() -> None:
@@ -154,14 +194,70 @@ def test_train_gru_classifier_logs_metrics_and_history(tmp_path: Path) -> None:
     )
     sequence_features = pd.DataFrame(
         [
-            {"sample_id": "s1", "event_type_sequence": "view"},
-            {"sample_id": "s2", "event_type_sequence": "view cart"},
-            {"sample_id": "s3", "event_type_sequence": "view view"},
-            {"sample_id": "s4", "event_type_sequence": "view cart cart"},
-            {"sample_id": "s5", "event_type_sequence": "view"},
-            {"sample_id": "s6", "event_type_sequence": "view cart"},
-            {"sample_id": "s7", "event_type_sequence": "view view"},
-            {"sample_id": "s8", "event_type_sequence": "cart cart"},
+            {
+                "sample_id": "s1",
+                "event_type_sequence": "view",
+                "product_id_sequence": "p1",
+                "category_id_sequence": "c1",
+                "price_bin_sequence": "low",
+                "time_gap_minutes_sequence": "0.000000",
+            },
+            {
+                "sample_id": "s2",
+                "event_type_sequence": "view cart",
+                "product_id_sequence": "p1 p2",
+                "category_id_sequence": "c1 c2",
+                "price_bin_sequence": "low mid",
+                "time_gap_minutes_sequence": "0.000000 2.000000",
+            },
+            {
+                "sample_id": "s3",
+                "event_type_sequence": "view view",
+                "product_id_sequence": "p3 p3",
+                "category_id_sequence": "c3 c3",
+                "price_bin_sequence": "low low",
+                "time_gap_minutes_sequence": "0.000000 1.000000",
+            },
+            {
+                "sample_id": "s4",
+                "event_type_sequence": "view cart cart",
+                "product_id_sequence": "p1 p2 p2",
+                "category_id_sequence": "c1 c2 c2",
+                "price_bin_sequence": "low mid mid",
+                "time_gap_minutes_sequence": "0.000000 2.000000 3.000000",
+            },
+            {
+                "sample_id": "s5",
+                "event_type_sequence": "view",
+                "product_id_sequence": "p1",
+                "category_id_sequence": "c1",
+                "price_bin_sequence": "low",
+                "time_gap_minutes_sequence": "0.000000",
+            },
+            {
+                "sample_id": "s6",
+                "event_type_sequence": "view cart",
+                "product_id_sequence": "p1 p2",
+                "category_id_sequence": "c1 c2",
+                "price_bin_sequence": "low mid",
+                "time_gap_minutes_sequence": "0.000000 2.000000",
+            },
+            {
+                "sample_id": "s7",
+                "event_type_sequence": "view view",
+                "product_id_sequence": "p3 p3",
+                "category_id_sequence": "c3 c3",
+                "price_bin_sequence": "low low",
+                "time_gap_minutes_sequence": "0.000000 1.000000",
+            },
+            {
+                "sample_id": "s8",
+                "event_type_sequence": "cart cart",
+                "product_id_sequence": "p2 p2",
+                "category_id_sequence": "c2 c2",
+                "price_bin_sequence": "mid mid",
+                "time_gap_minutes_sequence": "0.000000 3.000000",
+            },
         ]
     )
     dataset = build_gru_event_type_dataset(
