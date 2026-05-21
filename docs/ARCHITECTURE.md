@@ -62,6 +62,7 @@ C:\PurchasePropensityForecasting
 |       |-- exploratory_analysis.py
 |       |-- feature_engineering.py
 |       |-- labeling.py
+|       |-- sequence_modeling.py
 |       `-- streamlit_report.py
 |-- tests
 |   |-- test_baseline_modeling.py
@@ -70,6 +71,7 @@ C:\PurchasePropensityForecasting
 |   |-- test_exploratory_analysis.py
 |   |-- test_feature_engineering.py
 |   |-- test_labeling.py
+|   |-- test_sequence_modeling.py
 |   `-- test_streamlit_report.py
 `-- docs
     |-- ARCHITECTURE.md
@@ -106,3 +108,5 @@ C:\PurchasePropensityForecasting
 - `src/purchase_time_forecasting/streamlit_report.py`: Step 8 Streamlit 보고서 표시용 artifact 정리 로직이다. baseline artifact 존재 여부, 누락 artifact 생성 명령, test split metric 표, 최적 baseline 요약, LightGBM feature importance 상위 항목을 계산한다.
 - `app/streamlit_app.py`: Step 8 Streamlit 보고서 초안이다. 사이드바 목차로 Overview, Data Quality, Labeling, EDA, Features, Baseline Results, Next Step, Reproducibility 섹션을 선택해 볼 수 있으며, 각 섹션은 실제 artifact 기반으로 표시하고 artifact가 없을 때 모의 데이터 대신 생성 명령을 안내한다.
 - `tests/test_streamlit_report.py`: Step 8 Streamlit 표시 로직의 artifact 상태, baseline test metric 정리, 최적 전략 선택, LightGBM feature importance 필터링을 검증하는 pytest 테스트다.
+- `src/purchase_time_forecasting/sequence_modeling.py`: Step 9 GRU 학습 전 dataset 구성 로직이다. `sequence_feature_dataset.parquet`와 `sample_index.csv`를 `sample_id` 기준으로 연결하고, train split 기준 event type vocabulary, 정수 token ID, padding, sequence length, label/split 배열을 생성한다.
+- `tests/test_sequence_modeling.py`: Step 9 학습 전 dataset 계약을 검증하는 테스트다. train split vocabulary fit 범위, max sequence length tail truncation, right padding, unknown token 처리, label 연결, feature artifact 로드를 확인한다.
