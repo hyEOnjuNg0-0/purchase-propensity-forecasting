@@ -168,7 +168,7 @@ def render_overview() -> None:
             {
                 "": "7",
                 "단계": "Sequence",
-                "핵심": "GRU로 행동 순서 정보의 추가 효용 확인",
+                "핵심": "GRU 학습 artifact로 행동 순서 정보의 추가 효용 확인",
             },
         ]
     )
@@ -420,13 +420,13 @@ def render_baseline_results() -> None:
 def render_next_steps() -> None:
     render_section_title(
         "Next Step",
-        "Step 9에서 구현할 최소 GRU 모델의 역할과 범위 정리",
+        "Step 10에서 수행할 최종 모델 비교 범위 정리",
     )
     st.markdown(
         """
-        Step 9에서는 `sequence_feature_dataset.parquet`를 사용해 최소 GRU 모델을 학습한다.
-        목표는 복잡한 튜닝이 아니라, 동일 `sample_id`와 동일 split 기준에서
-        tabular baseline 대비 sequence 표현이 추가 효용을 주는지 확인하는 것이다.
+        Step 10에서는 Logistic Regression, LightGBM, GRU 결과를 동일 metric schema로
+        통합한다. 핵심 비교 기준은 PR-AUC이며, GRU가 baseline보다 높지 않더라도
+        현재 sequence 표현의 한계를 간단히 해석한다.
         """
     )
 
@@ -445,6 +445,7 @@ def render_reproducibility() -> None:
                 ".\\scripts\\run_ptf.ps1 python scripts\\run_eda.py",
                 ".\\scripts\\run_ptf.ps1 python scripts\\build_features.py",
                 ".\\scripts\\run_ptf.ps1 python scripts\\train_baselines.py",
+                ".\\scripts\\run_ptf.ps1 python scripts\\train_gru.py",
                 ".\\scripts\\run_ptf.ps1 streamlit run app/streamlit_app.py",
             ]
         ),

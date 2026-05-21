@@ -15,10 +15,13 @@ from purchase_time_forecasting.sequence_modeling import (  # noqa: E402
     PAD_TOKEN,
     UNKNOWN_TOKEN,
     EventTypeVocabulary,
+    GruTrainingPolicy,
     SequenceDatasetPolicy,
     build_event_type_vocabulary,
     build_gru_event_type_dataset,
     load_gru_event_type_dataset,
+    train_gru_classifier,
+    write_gru_artifacts,
 )
 
 
@@ -134,3 +137,66 @@ def test_gru_event_type_dataset_requires_matching_sample_ids() -> None:
         assert "sample_id 집합이 일치하지 않는다" in str(error)
     else:
         raise AssertionError("sample_id 불일치가 ValueError를 발생시켜야 한다.")
+
+
+def test_train_gru_classifier_logs_metrics_and_history(tmp_path: Path) -> None:
+    sample_index = pd.DataFrame(
+        [
+            {"sample_id": "s1", "split": "train", "label": 0},
+            {"sample_id": "s2", "split": "train", "label": 1},
+            {"sample_id": "s3", "split": "train", "label": 0},
+            {"sample_id": "s4", "split": "train", "label": 1},
+            {"sample_id": "s5", "split": "validation", "label": 0},
+            {"sample_id": "s6", "split": "validation", "label": 1},
+            {"sample_id": "s7", "split": "test", "label": 0},
+            {"sample_id": "s8", "split": "test", "label": 1},
+        ]
+    )
+    sequence_features = pd.DataFrame(
+        [
+            {"sample_id": "s1", "event_type_sequence": "view"},
+            {"sample_id": "s2", "event_type_sequence": "view cart"},
+            {"sample_id": "s3", "event_type_sequence": "view view"},
+            {"sample_id": "s4", "event_type_sequence": "view cart cart"},
+            {"sample_id": "s5", "event_type_sequence": "view"},
+            {"sample_id": "s6", "event_type_sequence": "view cart"},
+            {"sample_id": "s7", "event_type_sequence": "view view"},
+            {"sample_id": "s8", "event_type_sequence": "cart cart"},
+        ]
+    )
+    dataset = build_gru_event_type_dataset(
+        sample_index,
+        sequence_features,
+        policy=SequenceDatasetPolicy(max_sequence_length=3),
+    )
+    progress_messages: list[str] = []
+
+    result = train_gru_classifier(
+        dataset,
+        policy=GruTrainingPolicy(
+            max_sequence_length=3,
+            embedding_dim=4,
+            hidden_dim=4,
+            batch_size=2,
+            epochs=2,
+            learning_rate=0.01,
+            random_state=7,
+            device="cpu",
+        ),
+        progress_callback=progress_messages.append,
+    )
+
+    assert result.metrics["model_name"].tolist() == ["gru", "gru", "gru"]
+    assert result.metrics["split"].tolist() == ["train", "validation", "test"]
+    assert result.metrics["status"].tolist() == ["evaluated", "evaluated", "evaluated"]
+    assert result.model_status.loc[0, "status"] == "trained"
+    assert result.training_history["epoch"].tolist() == [1, 2]
+    assert "GRU epoch 1/2 학습 시작" in progress_messages
+    assert "GRU 학습 결과 정리 완료" in progress_messages
+
+    write_gru_artifacts(result, tmp_path)
+
+    assert (tmp_path / "gru_model_metrics.csv").exists()
+    assert (tmp_path / "gru_model_status.csv").exists()
+    assert (tmp_path / "gru_training_history.csv").exists()
+    assert (tmp_path / "gru_report.md").exists()

@@ -20,12 +20,13 @@
 | 테스트 | pytest 9.0.3 |
 | 대시보드 | Streamlit 1.57.0 |
 | Baseline 모델 | scikit-learn 1.7.2, LightGBM 4.6.0 |
+| Sequence 모델 | PyTorch 2.6.0+cu124 |
+| GPU | NVIDIA GeForce MX450, CUDA 12.4 PyTorch wheel |
 
-## 3. 후속 모델링/분석 예정 라이브러리
+## 3. 후속 분석 예정 라이브러리
 
 | 구분 | 라이브러리 |
 | --- | --- |
-| 딥러닝 | PyTorch |
 | 평가 | scikit-learn metrics |
 | 차원 축소 | UMAP, scikit-learn t-SNE |
 | 모델 해석 | SHAP |
