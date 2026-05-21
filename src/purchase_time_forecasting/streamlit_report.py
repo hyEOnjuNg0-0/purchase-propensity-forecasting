@@ -12,6 +12,28 @@ import pandas as pd
 BASELINE_BUILD_COMMAND = (
     ".\\scripts\\run_ptf.ps1 python scripts\\train_baselines.py"
 )
+FEATURE_DESCRIPTIONS = {
+    "prefix_length": "기준 시점까지 관측된 세션 내 이벤트 개수",
+    "last_event_type": "기준 시점의 마지막 사용자 행동 유형",
+    "session_elapsed_minutes": "세션 시작 이후 기준 시점까지 경과한 시간",
+    "time_since_previous_event_minutes": "직전 이벤트 이후 기준 시점까지 경과한 시간",
+    "hour": "기준 시점의 시간대",
+    "event_count_view": "기준 시점까지 누적된 view 이벤트 수",
+    "event_count_cart": "기준 시점까지 누적된 cart 이벤트 수",
+    "event_count_remove_from_cart": "기준 시점까지 누적된 remove_from_cart 이벤트 수",
+    "unique_product_count": "기준 시점까지 조회 또는 상호작용한 고유 상품 수",
+    "unique_category_count": "기준 시점까지 조회 또는 상호작용한 고유 카테고리 수",
+    "last_price": "기준 시점 마지막 이벤트의 상품 가격",
+    "last_price_bin": "기준 시점 마지막 상품 가격의 구간화 값",
+    "user_past_event_count": "기준 시점 이전 사용자의 과거 이벤트 수",
+    "user_past_purchase_count": "기준 시점 이전 사용자의 과거 구매 이벤트 수",
+    "user_past_cart_count": "기준 시점 이전 사용자의 과거 cart 이벤트 수",
+    "event_type_sequence": "기준 시점까지의 최근 행동 유형 sequence",
+    "product_id_sequence": "기준 시점까지의 최근 상품 ID sequence",
+    "category_id_sequence": "기준 시점까지의 최근 카테고리 ID sequence",
+    "price_bin_sequence": "기준 시점까지의 최근 가격 구간 sequence",
+    "time_gap_minutes_sequence": "기준 시점까지의 최근 이벤트 간 시간 간격 sequence",
+}
 
 
 @dataclass(frozen=True)
@@ -241,6 +263,40 @@ def top_feature_importance(
         filtered.sort_values(sort_columns, ascending=ascending, kind="mergesort")
         .loc[:, columns]
         .head(top_n)
+        .reset_index(drop=True)
+    )
+
+
+def prepare_training_feature_dictionary(feature_dictionary: pd.DataFrame) -> pd.DataFrame:
+    """학습 입력 feature 이름과 설명만 표시용으로 정리한다."""
+
+    required = {"feature_name", "model_role"}
+    output_columns = ["feature_name", "feature_description"]
+    if feature_dictionary.empty or not required.issubset(feature_dictionary.columns):
+        return pd.DataFrame(columns=output_columns)
+
+    training_roles = {"tabular_input", "sequence_input"}
+    filtered = feature_dictionary.loc[
+        feature_dictionary["model_role"].astype(str).isin(training_roles),
+        ["feature_name", "model_role"],
+    ].copy()
+    if filtered.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    filtered["feature_description"] = filtered["feature_name"].map(
+        FEATURE_DESCRIPTIONS
+    )
+    missing_description = filtered["feature_description"].isna()
+    filtered.loc[missing_description, "feature_description"] = filtered.loc[
+        missing_description, "feature_name"
+    ].map(lambda name: f"`{name}` 학습 입력 feature")
+
+    role_order = {"tabular_input": 0, "sequence_input": 1}
+    filtered["_role_order"] = filtered["model_role"].map(role_order).fillna(99)
+    filtered["_original_order"] = range(len(filtered))
+    return (
+        filtered.sort_values(["_role_order", "_original_order"], kind="mergesort")
+        .loc[:, output_columns]
         .reset_index(drop=True)
     )
 

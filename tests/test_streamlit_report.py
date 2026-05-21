@@ -18,6 +18,7 @@ from purchase_time_forecasting.streamlit_report import (  # noqa: E402
     build_artifact_status,
     missing_artifact_commands,
     prepare_baseline_test_metrics,
+    prepare_training_feature_dictionary,
     select_best_strategy,
     step8_artifact_requirements,
     top_feature_importance,
@@ -166,4 +167,44 @@ def test_top_feature_importance_filters_lightgbm_strategy_and_rank() -> None:
     assert top["feature_name"].tolist() == [
         "event_count_cart",
         "last_event_type__cart",
+    ]
+
+
+def test_prepare_training_feature_dictionary_keeps_feature_name_and_description() -> None:
+    feature_dictionary = pd.DataFrame(
+        [
+            {
+                "feature_name": "sample_id",
+                "feature_group": "identifier",
+                "dtype": "string",
+                "model_role": "key",
+                "leakage_policy": "모델별 dataset 연결 key",
+            },
+            {
+                "feature_name": "prefix_length",
+                "feature_group": "tabular",
+                "dtype": "integer",
+                "model_role": "tabular_input",
+                "leakage_policy": "기준 시점까지 관측된 prefix만 사용",
+            },
+            {
+                "feature_name": "event_type_sequence",
+                "feature_group": "sequence",
+                "dtype": "string_sequence",
+                "model_role": "sequence_input",
+                "leakage_policy": "기준 시점까지의 prefix sequence만 사용",
+            },
+        ]
+    )
+
+    prepared = prepare_training_feature_dictionary(feature_dictionary)
+
+    assert prepared.columns.tolist() == ["feature_name", "feature_description"]
+    assert prepared["feature_name"].tolist() == [
+        "prefix_length",
+        "event_type_sequence",
+    ]
+    assert prepared["feature_description"].tolist() == [
+        "기준 시점까지 관측된 세션 내 이벤트 개수",
+        "기준 시점까지의 최근 행동 유형 sequence",
     ]
