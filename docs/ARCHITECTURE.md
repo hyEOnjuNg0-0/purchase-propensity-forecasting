@@ -104,5 +104,5 @@ C:\PurchasePropensityForecasting
 - `scripts/train_baselines.py`: `ptf` 환경 래퍼로 실행하는 Step 7 CLI 진입점이다. 대용량 artifact 검증을 위해 split별 실제 sample 상한 옵션을 제공하며, 기본 산출물은 `artifacts/reports/model_metrics.csv`, `baseline_feature_importance.csv`, `baseline_model_status.csv`, `baseline_report.md`다.
 - `tests/test_baseline_modeling.py`: baseline dataset join, train split 기준 전처리, metric 계산, Logistic Regression class imbalance 비교, baseline artifact 저장 계약을 검증하는 pytest 테스트다.
 - `src/purchase_time_forecasting/streamlit_report.py`: Step 8 Streamlit 보고서 표시용 artifact 정리 로직이다. baseline artifact 존재 여부, 누락 artifact 생성 명령, test split metric 표, 최적 baseline 요약, LightGBM feature importance 상위 항목을 계산한다.
-- `app/streamlit_app.py`: Step 8 Streamlit 보고서 초안이다. 데이터 품질, 라벨링, EDA, feature, baseline 결과 섹션을 실제 artifact 기반으로 표시하고, artifact가 없을 때 모의 데이터 대신 생성 명령을 안내한다.
+- `app/streamlit_app.py`: Step 8 Streamlit 보고서 초안이다. 사이드바 목차로 Overview, Data Quality, Labeling, EDA, Features, Baseline Results, Next Step, Reproducibility 섹션을 선택해 볼 수 있으며, 각 섹션은 실제 artifact 기반으로 표시하고 artifact가 없을 때 모의 데이터 대신 생성 명령을 안내한다.
 - `tests/test_streamlit_report.py`: Step 8 Streamlit 표시 로직의 artifact 상태, baseline test metric 정리, 최적 전략 선택, LightGBM feature importance 필터링을 검증하는 pytest 테스트다.

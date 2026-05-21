@@ -15,11 +15,8 @@ if str(SRC_DIR) not in sys.path:
 from purchase_time_forecasting.streamlit_report import (  # noqa: E402
     BASELINE_BUILD_COMMAND,
     best_metric_summary,
-    build_artifact_status,
-    missing_artifact_commands,
     prepare_baseline_test_metrics,
     select_best_strategy,
-    step8_artifact_requirements,
     top_feature_importance,
 )
 
@@ -60,39 +57,103 @@ def render_missing_artifact(path: Path, command: str) -> None:
     st.code(command, language="powershell")
 
 
-def render_artifact_status() -> None:
-    status = build_artifact_status(step8_artifact_requirements(REPORTS_DIR))
-    st.sidebar.header("Artifact 상태")
-    sidebar_status = status.copy()
-    sidebar_status["path"] = sidebar_status["path"].map(
-        lambda value: _relative_path(Path(value))
+def render_navigation() -> str:
+    st.sidebar.title("목차")
+    sections = [
+        "1. Overview",
+        "2. Data Quality",
+        "3. Labeling",
+        "4. EDA",
+        "5. Features",
+        "6. Baseline Results",
+        "7. Next Step",
+        "8. Reproducibility",
+    ]
+    selected = st.sidebar.radio(
+        "Report Sections",
+        sections,
+        label_visibility="collapsed",
     )
-    st.sidebar.dataframe(sidebar_status, use_container_width=True, hide_index=True)
+    return selected
 
-    commands = missing_artifact_commands(status)
-    if commands:
-        st.sidebar.caption("누락 artifact 생성 명령")
-        for command in commands:
-            st.sidebar.code(command, language="powershell")
+
+def render_section_title(title: str, description: str | None = None) -> None:
+    st.header(title)
+    if description:
+        st.caption(description)
 
 
 def render_overview() -> None:
-    st.header("Overview")
+    render_section_title("Overview")
+
+    st.subheader("목표")
     st.markdown(
         """
-        이 보고서는 `2019-Oct.csv`의 세션 내 행동 이력을 이용해 기준 시점 이후
-        **30분 내 purchase 발생 확률**을 예측하는 개인 과제 결과물이다.
-
-        - 예측 단위: `user_session` 내부 prefix sequence
-        - 라벨: 같은 세션에서 `(cutoff_time, cutoff_time + 30분]` 내 첫 purchase 발생 여부
-        - 현재 단계: Logistic Regression과 LightGBM baseline 결과를 Streamlit에 연결
-        - 다음 단계: 같은 `sample_id` 기준으로 GRU sequence 모델 학습 후 비교
+        `2019-Oct.csv`의 세션 내 행동 이력을 이용해 기준 시점 이후
+        **30분 내 purchase 발생 확률**을 예측한다. 
+        
+        운영 서비스가 아니라,
+        데이터 검증, 라벨링, feature 생성, baseline 모델링 과정을 한눈에 확인하는
+        Streamlit 보고서 결과물을 목표로 한다.
         """
     )
 
+    st.subheader("사용 데이터")
+    st.markdown(
+        """
+        - 데이터셋 출처 : Kaggle `eCommerce behavior data from multi category store`
+        - 사용 데이터 : `2019-Oct.csv`에서 2019-10-10까지
+        """
+    )
+
+    st.subheader("핵심 흐름")
+    flow = pd.DataFrame(
+        [
+            {   
+                "": "1",
+                "단계": "문제 정의",
+                "핵심": "세션 prefix 기준 향후 30분 내 구매 발생 예측",
+            },
+            {
+                "": "2",
+                "단계": "데이터 검증",
+                "핵심": "스키마, 결측, 가격 이상치, 세션 시간 정합성 확인",
+            },
+            {
+                "": "3",
+                "단계": "라벨링",
+                "핵심": "첫 purchase 기준 30분 window label 생성",
+            },
+            {
+                "": "4",
+                "단계": "EDA",
+                "핵심": "세션 길이, 행동 패턴, 가격대, 시간대별 구매율 확인",
+            },
+            {
+                "": "5",
+                "단계": "Feature Engineering",
+                "핵심": "공통 sample index와 tabular/sequence feature artifact 생성",
+            },
+            {
+                "": "6",
+                "단계": "Baseline 모델 평가",
+                "핵심": "Logistic Regression, LightGBM test 성능 비교",
+            },
+            {
+                "": "7",
+                "단계": "Sequence",
+                "핵심": "GRU로 행동 순서 정보의 추가 효용 확인",
+            },
+        ]
+    )
+    st.dataframe(flow, use_container_width=True, hide_index=True)
+
 
 def render_data_quality() -> None:
-    st.header("Data Quality")
+    render_section_title(
+        "Data Quality",
+        "모델링 전에 원천 데이터가 예측 문제로 사용할 수 있는지 점검한 결과입니다.",
+    )
     summary = read_csv(str(REPORTS_DIR / "data_quality_summary.csv"))
     if summary is None:
         render_missing_artifact(
@@ -114,7 +175,10 @@ def render_data_quality() -> None:
 
 
 def render_labeling() -> None:
-    st.header("Labeling")
+    render_section_title(
+        "Labeling",
+        "30분 purchase label 정책과 실제 label 분포를 확인합니다.",
+    )
     distribution = read_csv(str(REPORTS_DIR / "label_distribution.csv"))
     policy = read_csv(str(REPORTS_DIR / "labeling_policy.csv"))
 
@@ -140,7 +204,10 @@ def render_labeling() -> None:
 
 
 def render_eda() -> None:
-    st.header("EDA")
+    render_section_title(
+        "EDA",
+        "구매율에 영향을 줄 수 있는 세션 길이, 행동 패턴, 가격대, 시간대 패턴을 봅니다.",
+    )
     tabs = st.tabs(["세션 길이", "행동 패턴", "가격대", "시간대"])
     eda_specs = [
         (
@@ -193,7 +260,10 @@ def render_eda() -> None:
 
 
 def render_features() -> None:
-    st.header("Features")
+    render_section_title(
+        "Features",
+        "공통 sample index와 baseline/sequence 입력 artifact의 split 및 feature 구성을 확인합니다.",
+    )
     split_summary = read_csv(str(REPORTS_DIR / "feature_split_summary.csv"))
     feature_dictionary = read_csv(str(REPORTS_DIR / "feature_dictionary.csv"))
 
@@ -219,11 +289,13 @@ def render_features() -> None:
 
 
 def render_baseline_results() -> None:
-    st.header("Baseline Results")
+    render_section_title(
+        "Baseline Results",
+        "Logistic Regression과 LightGBM의 test 성능과 주요 feature를 비교합니다.",
+    )
     metrics = read_csv(str(REPORTS_DIR / "model_metrics.csv"))
     importance = read_csv(str(REPORTS_DIR / "baseline_feature_importance.csv"))
     status = read_csv(str(REPORTS_DIR / "baseline_model_status.csv"))
-    report = read_markdown(str(REPORTS_DIR / "baseline_report.md"))
 
     if metrics is None:
         render_missing_artifact(REPORTS_DIR / "model_metrics.csv", BASELINE_BUILD_COMMAND)
@@ -286,13 +358,12 @@ def render_baseline_results() -> None:
             )
             st.dataframe(top_features, use_container_width=True, hide_index=True)
 
-    if report:
-        with st.expander("Baseline report markdown"):
-            st.markdown(report)
-
 
 def render_next_steps() -> None:
-    st.header("Next Step")
+    render_section_title(
+        "Next Step",
+        "Step 9에서 구현할 최소 GRU 모델의 역할과 범위를 정리합니다.",
+    )
     st.markdown(
         """
         Step 9에서는 `sequence_feature_dataset.parquet`를 사용해 최소 GRU 모델을 학습한다.
@@ -303,7 +374,10 @@ def render_next_steps() -> None:
 
 
 def render_reproducibility() -> None:
-    st.header("Reproducibility")
+    render_section_title(
+        "Reproducibility",
+        "분석 artifact와 Streamlit 보고서를 재생성하는 실행 순서입니다.",
+    )
     st.code(
         "\n".join(
             [
@@ -327,6 +401,28 @@ def _relative_path(path: Path) -> str:
         return str(path)
 
 
+def _lookup_metric(frame: pd.DataFrame | None, metric_name: str) -> float | None:
+    if frame is None or {"metric", "value"} - set(frame.columns):
+        return None
+    values = frame.loc[frame["metric"].astype(str).eq(metric_name), "value"]
+    if values.empty:
+        return None
+    return pd.to_numeric(values.iloc[0], errors="coerce")
+
+
+def _format_ratio(value: float | None) -> str:
+    if value is None or pd.isna(value):
+        return "artifact 없음"
+    return f"{float(value):.2%}"
+
+
+def _format_float(value: object) -> str:
+    numeric_value = pd.to_numeric(value, errors="coerce")
+    if pd.isna(numeric_value):
+        return "N/A"
+    return f"{float(numeric_value):.4f}"
+
+
 def main() -> None:
     st.set_page_config(
         page_title="30분 내 구매 확률 예측",
@@ -335,15 +431,18 @@ def main() -> None:
     st.title("30분 내 구매 확률 예측")
     st.caption("세션 행동 prefix 기반 Purchase Propensity Forecasting 결과 보고서")
 
-    render_artifact_status()
-    render_overview()
-    render_data_quality()
-    render_labeling()
-    render_eda()
-    render_features()
-    render_baseline_results()
-    render_next_steps()
-    render_reproducibility()
+    selected_section = render_navigation()
+    renderers = {
+        "1. Overview": render_overview,
+        "2. Data Quality": render_data_quality,
+        "3. Labeling": render_labeling,
+        "4. EDA": render_eda,
+        "5. Features": render_features,
+        "6. Baseline Results": render_baseline_results,
+        "7. Next Step": render_next_steps,
+        "8. Reproducibility": render_reproducibility,
+    }
+    renderers[selected_section]()
 
 
 if __name__ == "__main__":
