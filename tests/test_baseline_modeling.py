@@ -185,6 +185,7 @@ def test_compute_binary_metrics_returns_pr_roc_f1_and_top_k_metrics() -> None:
 
 def test_train_baseline_models_writes_metrics_and_importance(tmp_path: Path) -> None:
     dataset = build_baseline_dataset(_sample_index(), _tabular_features())
+    progress_messages: list[str] = []
     result = train_baseline_models(
         dataset,
         policy=BaselineTrainingPolicy(
@@ -192,6 +193,7 @@ def test_train_baseline_models_writes_metrics_and_importance(tmp_path: Path) -> 
             logistic_max_iter=20,
             train_lightgbm=False,
         ),
+        progress_callback=progress_messages.append,
     )
 
     assert set(result.metrics["model_name"]) == {"logistic_regression"}
@@ -201,6 +203,9 @@ def test_train_baseline_models_writes_metrics_and_importance(tmp_path: Path) -> 
     assert result.metrics["pr_auc"].dtype.kind == "f"
     assert not result.feature_importance.empty
     assert result.feature_importance["feature_name"].notna().all()
+    assert "tabular 전처리기 fit 시작" in progress_messages
+    assert "Logistic Regression 학습 시작: strategy=none" in progress_messages
+    assert "baseline 학습 결과 정리 완료" in progress_messages
 
     write_baseline_artifacts(result, tmp_path)
 

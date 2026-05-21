@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
@@ -80,12 +81,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def log_progress(message: str) -> None:
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] {message}", flush=True)
+
+
 def main() -> None:
     args = parse_args()
+    log_progress("baseline 학습 스크립트 시작")
     dataset = load_baseline_dataset(
         args.features_dir,
         max_samples_per_split=args.max_samples_per_split,
         chunksize=args.chunksize,
+        progress_callback=log_progress,
     )
     policy = BaselineTrainingPolicy(
         threshold=args.threshold,
@@ -94,8 +102,14 @@ def main() -> None:
         lightgbm_n_estimators=args.lightgbm_n_estimators,
         train_lightgbm=not args.skip_lightgbm,
     )
-    result = train_baseline_models(dataset, policy=policy)
+    result = train_baseline_models(
+        dataset,
+        policy=policy,
+        progress_callback=log_progress,
+    )
+    log_progress("baseline artifact 저장 시작")
     write_baseline_artifacts(result, args.reports_dir)
+    log_progress("baseline artifact 저장 완료")
 
     print(f"baseline_sample_count={len(dataset)}")
     print(f"reports_dir={args.reports_dir}")
@@ -104,6 +118,7 @@ def main() -> None:
             f"{row['model_name']}:{row['class_imbalance_strategy']}="
             f"{row['status']}"
         )
+    log_progress("baseline 학습 스크립트 완료")
 
 
 if __name__ == "__main__":

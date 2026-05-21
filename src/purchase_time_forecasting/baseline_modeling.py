@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -27,6 +27,7 @@ METADATA_COLUMNS = {
     "minutes_until_purchase",
 }
 SPLITS = ("train", "validation", "test")
+ProgressCallback = Callable[[str], None]
 
 
 @dataclass(frozen=True)
@@ -176,6 +177,7 @@ def load_baseline_dataset(
     features_dir: Path,
     max_samples_per_split: int | None = None,
     chunksize: int = 200_000,
+    progress_callback: ProgressCallback | None = None,
 ) -> pd.DataFrame:
     """feature artifact에서 baseline 학습 dataset을 로드한다."""
 
@@ -183,42 +185,94 @@ def load_baseline_dataset(
     sample_index_path = feature_dir / "sample_index.csv"
     tabular_path = feature_dir / "tabular_feature_dataset.csv"
     if max_samples_per_split is None:
+        _progress(progress_callback, "sample_index.csv 전체 로드 시작")
         sample_index = pd.read_csv(sample_index_path)
+        _progress(
+            progress_callback,
+            f"sample_index.csv 로드 완료: {len(sample_index):,} rows",
+        )
+        _progress(progress_callback, "tabular_feature_dataset.csv 전체 로드 시작")
         tabular = pd.read_csv(tabular_path)
-        return build_baseline_dataset(sample_index, tabular)
+        _progress(
+            progress_callback,
+            f"tabular_feature_dataset.csv 로드 완료: {len(tabular):,} rows",
+        )
+        _progress(progress_callback, "baseline dataset join 시작")
+        dataset = build_baseline_dataset(sample_index, tabular)
+        _progress(
+            progress_callback,
+            f"baseline dataset join 완료: {len(dataset):,} rows",
+        )
+        return dataset
 
+    _progress(
+        progress_callback,
+        f"sample_index.csv 제한 로드 시작: split별 최대 {max_samples_per_split:,} rows",
+    )
     sample_index = _read_sample_index_limited(
         sample_index_path,
         max_samples_per_split=max_samples_per_split,
         chunksize=chunksize,
     )
+    _progress(
+        progress_callback,
+        f"sample_index.csv 제한 로드 완료: {len(sample_index):,} rows",
+    )
+    _progress(progress_callback, "tabular_feature_dataset.csv 제한 로드 시작")
     tabular = _read_tabular_for_sample_ids(
         tabular_path,
         set(sample_index["sample_id"].astype(str)),
         chunksize=chunksize,
     )
-    return build_baseline_dataset(sample_index, tabular)
+    _progress(
+        progress_callback,
+        f"tabular_feature_dataset.csv 제한 로드 완료: {len(tabular):,} rows",
+    )
+    _progress(progress_callback, "baseline dataset join 시작")
+    dataset = build_baseline_dataset(sample_index, tabular)
+    _progress(
+        progress_callback,
+        f"baseline dataset join 완료: {len(dataset):,} rows",
+    )
+    return dataset
 
 
 def train_baseline_models(
     dataset: pd.DataFrame,
     policy: BaselineTrainingPolicy | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> BaselineTrainingResult:
     """Logistic Regression과 LightGBM baseline을 학습하고 평가한다."""
 
     active_policy = policy or BaselineTrainingPolicy()
+    _progress(progress_callback, "baseline 학습 입력 검증 시작")
     _validate_policy(active_policy)
     _validate_training_dataset(dataset)
+    _progress(
+        progress_callback,
+        f"baseline 학습 입력 검증 완료: {len(dataset):,} rows",
+    )
 
     train = dataset.loc[dataset["split"].eq("train")].copy()
     if train.empty:
         raise ValueError("baseline 학습에는 train split sample이 필요하다.")
+    _progress(progress_callback, _split_summary_message(dataset))
 
+    _progress(progress_callback, "tabular 전처리기 fit 시작")
     preprocessor = TabularPreprocessor.fit(train)
-    transformed_by_split = {
-        split: preprocessor.transform(dataset.loc[dataset["split"].eq(split)])
-        for split in SPLITS
-    }
+    _progress(
+        progress_callback,
+        f"tabular 전처리기 fit 완료: {len(preprocessor.feature_names):,} features",
+    )
+    transformed_by_split = {}
+    for split in SPLITS:
+        _progress(progress_callback, f"{split} split 전처리 transform 시작")
+        transformed = preprocessor.transform(dataset.loc[dataset["split"].eq(split)])
+        transformed_by_split[split] = transformed
+        _progress(
+            progress_callback,
+            f"{split} split 전처리 transform 완료: {len(transformed):,} rows",
+        )
     labels_by_split = {
         split: dataset.loc[dataset["split"].eq(split), "label"].astype(int).to_numpy()
         for split in SPLITS
@@ -229,6 +283,10 @@ def train_baseline_models(
     status_rows: list[dict[str, object]] = []
 
     for strategy in active_policy.class_imbalance_strategies:
+        _progress(
+            progress_callback,
+            f"Logistic Regression 학습 시작: strategy={strategy}",
+        )
         logistic_model, detail = _fit_logistic_regression(
             transformed_by_split["train"],
             labels_by_split["train"],
@@ -237,6 +295,7 @@ def train_baseline_models(
         )
         if logistic_model is None:
             skip_status = "skipped_invalid_training_data"
+            _progress(progress_callback, f"Logistic Regression 학습 생략: {detail}")
             status_rows.append(
                 _status_row("logistic_regression", strategy, skip_status, detail)
             )
@@ -251,8 +310,13 @@ def train_baseline_models(
             )
             continue
 
+        _progress(progress_callback, f"Logistic Regression 학습 완료: {detail}")
         status_rows.append(
             _status_row("logistic_regression", strategy, "trained", detail)
+        )
+        _progress(
+            progress_callback,
+            f"Logistic Regression 평가 시작: strategy={strategy}",
         )
         metric_rows.extend(
             _evaluate_model(
@@ -266,6 +330,10 @@ def train_baseline_models(
                 policy=active_policy,
             )
         )
+        _progress(
+            progress_callback,
+            f"Logistic Regression 평가 완료: strategy={strategy}",
+        )
         importance_rows.extend(
             _coefficient_importance_rows(
                 "logistic_regression",
@@ -278,6 +346,7 @@ def train_baseline_models(
         if not active_policy.train_lightgbm:
             continue
 
+        _progress(progress_callback, f"LightGBM 학습 시작: strategy={strategy}")
         lightgbm_model, detail = _fit_lightgbm(
             transformed_by_split["train"],
             labels_by_split["train"],
@@ -290,6 +359,7 @@ def train_baseline_models(
                 if "패키지" in detail
                 else "skipped_invalid_training_data"
             )
+            _progress(progress_callback, f"LightGBM 학습 생략: {detail}")
             status_rows.append(
                 _status_row("lightgbm", strategy, skip_status, detail)
             )
@@ -304,7 +374,9 @@ def train_baseline_models(
             )
             continue
 
+        _progress(progress_callback, f"LightGBM 학습 완료: {detail}")
         status_rows.append(_status_row("lightgbm", strategy, "trained", detail))
+        _progress(progress_callback, f"LightGBM 평가 시작: strategy={strategy}")
         metric_rows.extend(
             _evaluate_model(
                 model_name="lightgbm",
@@ -317,6 +389,7 @@ def train_baseline_models(
                 policy=active_policy,
             )
         )
+        _progress(progress_callback, f"LightGBM 평가 완료: strategy={strategy}")
         importance_rows.extend(
             _lightgbm_importance_rows(
                 "lightgbm",
@@ -326,15 +399,18 @@ def train_baseline_models(
             )
         )
 
+    _progress(progress_callback, "baseline 학습 결과 정리 시작")
     metrics = pd.DataFrame(metric_rows)
     feature_importance = pd.DataFrame(importance_rows)
     model_status = pd.DataFrame(status_rows)
-    return BaselineTrainingResult(
+    result = BaselineTrainingResult(
         metrics=metrics,
         feature_importance=feature_importance,
         model_status=model_status,
         report_markdown=build_baseline_report(metrics, model_status),
     )
+    _progress(progress_callback, "baseline 학습 결과 정리 완료")
+    return result
 
 
 def compute_binary_metrics(
@@ -483,6 +559,21 @@ def _validate_policy(policy: BaselineTrainingPolicy) -> None:
     unknown = set(policy.class_imbalance_strategies) - allowed
     if unknown:
         raise ValueError(f"지원하지 않는 class imbalance 전략: {', '.join(sorted(unknown))}")
+
+
+def _progress(callback: ProgressCallback | None, message: str) -> None:
+    if callback is not None:
+        callback(message)
+
+
+def _split_summary_message(dataset: pd.DataFrame) -> str:
+    parts = []
+    for split in SPLITS:
+        labels = dataset.loc[dataset["split"].eq(split), "label"].astype(int)
+        parts.append(
+            f"{split}={len(labels):,} rows, positive={int(labels.sum()):,}"
+        )
+    return "split별 학습 데이터 분포: " + " / ".join(parts)
 
 
 def _feature_columns(frame: pd.DataFrame) -> list[str]:
