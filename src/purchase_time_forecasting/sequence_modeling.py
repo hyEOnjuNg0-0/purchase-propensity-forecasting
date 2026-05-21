@@ -46,8 +46,8 @@ class GruTrainingPolicy:
     """GRU 학습 정책."""
 
     max_sequence_length: int = 50
-    embedding_dim: int = 8
-    hidden_dim: int = 16
+    embedding_dim: int = 16
+    hidden_dim: int = 64
     batch_size: int = 128
     epochs: int = 10
     learning_rate: float = 0.001
