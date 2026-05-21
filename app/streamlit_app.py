@@ -156,7 +156,7 @@ def render_overview() -> None:
 def render_data_quality() -> None:
     render_section_title(
         "Data Quality",
-        "모델링 전에 원천 데이터가 예측 문제로 사용할 수 있는지 점검한 결과입니다.",
+        "모델링 전에 원천 데이터가 예측 문제로 사용할 수 있는지 점검",
     )
     summary = read_csv(str(REPORTS_DIR / "data_quality_summary.csv"))
     if summary is None:
@@ -169,48 +169,48 @@ def render_data_quality() -> None:
     status_counts = summary["status"].value_counts().rename_axis("status").reset_index(
         name="count"
     )
-    left, right = st.columns([1, 2])
-    with left:
-        st.subheader("검증 상태 요약")
-        st.dataframe(status_counts, use_container_width=True, hide_index=True)
-    with right:
-        st.subheader("검증 상세")
-        st.dataframe(summary, use_container_width=True, hide_index=True)
+    st.subheader("검증 상태 요약")
+    st.dataframe(status_counts, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    st.subheader("검증 상세")
+    st.dataframe(summary, use_container_width=True, hide_index=True)
 
 
 def render_labeling() -> None:
     render_section_title(
         "Labeling",
-        "30분 purchase label 정책과 실제 label 분포를 확인합니다.",
+        "30분 purchase label 정책과 실제 label 분포 확인",
     )
     distribution = read_csv(str(REPORTS_DIR / "label_distribution.csv"))
     policy = read_csv(str(REPORTS_DIR / "labeling_policy.csv"))
 
-    left, right = st.columns(2)
-    with left:
-        st.subheader("라벨 분포")
-        if distribution is None:
-            render_missing_artifact(
-                REPORTS_DIR / "label_distribution.csv",
-                ".\\scripts\\run_ptf.ps1 python scripts\\create_labels.py",
-            )
-        else:
-            st.dataframe(distribution, use_container_width=True, hide_index=True)
-    with right:
-        st.subheader("라벨링 정책")
-        if policy is None:
-            render_missing_artifact(
-                REPORTS_DIR / "labeling_policy.csv",
-                ".\\scripts\\run_ptf.ps1 python scripts\\create_labels.py",
-            )
-        else:
-            st.dataframe(policy, use_container_width=True, hide_index=True)
+    st.subheader("라벨 분포")
+    if distribution is None:
+        render_missing_artifact(
+            REPORTS_DIR / "label_distribution.csv",
+            ".\\scripts\\run_ptf.ps1 python scripts\\create_labels.py",
+        )
+    else:
+        st.dataframe(distribution, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    st.subheader("라벨링 정책")
+    if policy is None:
+        render_missing_artifact(
+            REPORTS_DIR / "labeling_policy.csv",
+            ".\\scripts\\run_ptf.ps1 python scripts\\create_labels.py",
+        )
+    else:
+        st.dataframe(policy, use_container_width=True, hide_index=True)
 
 
 def render_eda() -> None:
     render_section_title(
         "EDA",
-        "구매율에 영향을 줄 수 있는 세션 길이, 행동 패턴, 가격대, 시간대 패턴을 봅니다.",
+        "구매율에 영향을 줄 수 있는 세션 길이, 행동 패턴, 가격대, 시간대 패턴 분석",
     )
     tabs = st.tabs(["세션 길이", "행동 패턴", "가격대", "시간대"])
     eda_specs = [
@@ -266,36 +266,36 @@ def render_eda() -> None:
 def render_features() -> None:
     render_section_title(
         "Features",
-        "공통 sample index와 baseline/sequence 입력 artifact의 split 및 feature 구성을 확인합니다.",
+        "공통 sample index와 baseline/sequence 입력 artifact의 split 및 feature 구성 확인",
     )
     split_summary = read_csv(str(REPORTS_DIR / "feature_split_summary.csv"))
     feature_dictionary = read_csv(str(REPORTS_DIR / "feature_dictionary.csv"))
 
-    left, right = st.columns([1, 2])
-    with left:
-        st.subheader("Split 분포")
-        if split_summary is None:
-            render_missing_artifact(
-                REPORTS_DIR / "feature_split_summary.csv",
-                ".\\scripts\\run_ptf.ps1 python scripts\\build_features.py",
-            )
-        else:
-            st.dataframe(split_summary, use_container_width=True, hide_index=True)
-    with right:
-        st.subheader("Feature Dictionary")
-        if feature_dictionary is None:
-            render_missing_artifact(
-                REPORTS_DIR / "feature_dictionary.csv",
-                ".\\scripts\\run_ptf.ps1 python scripts\\build_features.py",
-            )
-        else:
-            st.dataframe(feature_dictionary, use_container_width=True, hide_index=True)
+    st.subheader("Split 분포")
+    if split_summary is None:
+        render_missing_artifact(
+            REPORTS_DIR / "feature_split_summary.csv",
+            ".\\scripts\\run_ptf.ps1 python scripts\\build_features.py",
+        )
+    else:
+        st.dataframe(split_summary, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    st.subheader("Feature Dictionary")
+    if feature_dictionary is None:
+        render_missing_artifact(
+            REPORTS_DIR / "feature_dictionary.csv",
+            ".\\scripts\\run_ptf.ps1 python scripts\\build_features.py",
+        )
+    else:
+        st.dataframe(feature_dictionary, use_container_width=True, hide_index=True)
 
 
 def render_baseline_results() -> None:
     render_section_title(
         "Baseline Results",
-        "Logistic Regression과 LightGBM의 test 성능과 주요 feature를 비교합니다.",
+        "Logistic Regression과 LightGBM의 test 성능과 주요 feature 비교",
     )
     metrics = read_csv(str(REPORTS_DIR / "model_metrics.csv"))
     importance = read_csv(str(REPORTS_DIR / "baseline_feature_importance.csv"))
@@ -313,6 +313,8 @@ def render_baseline_results() -> None:
         col2.metric("Best test PR-AUC", f"{float(best['pr_auc']):.4f}")
         col3.metric("Best test ROC-AUC", f"{float(best['roc_auc']):.4f}")
 
+    st.divider()
+
     st.subheader("Test 성능 비교")
     if test_metrics.empty:
         st.info("표시 가능한 test split baseline metric이 없습니다.")
@@ -326,6 +328,8 @@ def render_baseline_results() -> None:
         )
         st.bar_chart(chart_data, height=260)
 
+    st.divider()
+
     st.subheader("모델 상태")
     if status is None:
         render_missing_artifact(
@@ -334,6 +338,8 @@ def render_baseline_results() -> None:
         )
     else:
         st.dataframe(status, use_container_width=True, hide_index=True)
+
+    st.divider()
 
     st.subheader("LightGBM 주요 feature")
     if importance is None:
@@ -366,7 +372,7 @@ def render_baseline_results() -> None:
 def render_next_steps() -> None:
     render_section_title(
         "Next Step",
-        "Step 9에서 구현할 최소 GRU 모델의 역할과 범위를 정리합니다.",
+        "Step 9에서 구현할 최소 GRU 모델의 역할과 범위 정리",
     )
     st.markdown(
         """
