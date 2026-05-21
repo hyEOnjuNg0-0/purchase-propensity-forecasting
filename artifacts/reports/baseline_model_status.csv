@@ -1,0 +1,5 @@
+model_name,class_imbalance_strategy,status,detail
+logistic_regression,none,trained,sklearn class_weight=none
+lightgbm,none,trained,lightgbm scale_pos_weight=1.000000
+logistic_regression,balanced,trained,sklearn class_weight=balanced
+lightgbm,balanced,trained,lightgbm scale_pos_weight=14.036584
