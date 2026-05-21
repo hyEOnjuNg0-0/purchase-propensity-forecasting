@@ -8,6 +8,12 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import average_precision_score, f1_score, roc_auc_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
 CATEGORICAL_FEATURES = ("last_event_type", "last_price_bin")
@@ -30,9 +36,7 @@ class BaselineTrainingPolicy:
     threshold: float = 0.5
     top_k_fraction: float = 0.1
     class_imbalance_strategies: tuple[str, ...] = ("none", "balanced")
-    logistic_learning_rate: float = 0.05
     logistic_max_iter: int = 300
-    logistic_l2_penalty: float = 0.0001
     train_lightgbm: bool = True
     lightgbm_n_estimators: int = 200
     random_state: int = 42
@@ -50,13 +54,11 @@ class BaselineTrainingResult:
 
 @dataclass(frozen=True)
 class TabularPreprocessor:
-    """train split 기준으로 fit한 tabular 전처리기."""
+    """train split 기준으로 fit한 sklearn tabular 전처리기."""
 
     numeric_features: tuple[str, ...]
-    categorical_values: dict[str, tuple[str, ...]]
-    numeric_fill_values: dict[str, float]
-    numeric_means: dict[str, float]
-    numeric_stds: dict[str, float]
+    categorical_features: tuple[str, ...]
+    transformer: ColumnTransformer
 
     @classmethod
     def fit(cls, train: pd.DataFrame) -> "TabularPreprocessor":
@@ -64,107 +66,91 @@ class TabularPreprocessor:
         numeric_features = tuple(
             column for column in feature_columns if column not in CATEGORICAL_FEATURES
         )
-        categorical_values = {
-            column: tuple(_sorted_text_values(train[column])) if column in train else tuple()
-            for column in CATEGORICAL_FEATURES
-        }
-        numeric_fill_values: dict[str, float] = {}
-        numeric_means: dict[str, float] = {}
-        numeric_stds: dict[str, float] = {}
-        for column in numeric_features:
-            values = pd.to_numeric(train[column], errors="coerce")
-            median = float(values.median()) if values.notna().any() else 0.0
-            filled = values.fillna(median)
-            mean = float(filled.mean()) if len(filled) else 0.0
-            std = float(filled.std(ddof=0)) if len(filled) else 1.0
-            numeric_fill_values[column] = median
-            numeric_means[column] = mean
-            numeric_stds[column] = std if std > 0 else 1.0
+        categorical_features = tuple(
+            column for column in CATEGORICAL_FEATURES if column in train.columns
+        )
+        transformer = ColumnTransformer(
+            transformers=[
+                (
+                    "numeric",
+                    Pipeline(
+                        steps=[
+                            (
+                                "imputer",
+                                SimpleImputer(
+                                    strategy="median",
+                                    keep_empty_features=True,
+                                ),
+                            ),
+                            ("scaler", StandardScaler()),
+                        ]
+                    ),
+                    list(numeric_features),
+                ),
+                (
+                    "categorical",
+                    Pipeline(
+                        steps=[
+                            (
+                                "imputer",
+                                SimpleImputer(
+                                    strategy="constant",
+                                    fill_value="<missing>",
+                                    keep_empty_features=True,
+                                ),
+                            ),
+                            (
+                                "encoder",
+                                OneHotEncoder(
+                                    handle_unknown="ignore",
+                                    sparse_output=False,
+                                ),
+                            ),
+                        ]
+                    ),
+                    list(categorical_features),
+                ),
+            ],
+            remainder="drop",
+        )
+        transformer.fit(train.loc[:, [*numeric_features, *categorical_features]])
         return cls(
             numeric_features=numeric_features,
-            categorical_values=categorical_values,
-            numeric_fill_values=numeric_fill_values,
-            numeric_means=numeric_means,
-            numeric_stds=numeric_stds,
+            categorical_features=categorical_features,
+            transformer=transformer,
         )
 
     @property
     def feature_names(self) -> list[str]:
         names = list(self.numeric_features)
-        for column in CATEGORICAL_FEATURES:
-            for value in self.categorical_values.get(column, tuple()):
+        for column, values in self.categorical_values.items():
+            for value in values:
                 names.append(f"{column}__{value}")
         return names
 
+    @property
+    def categorical_values(self) -> dict[str, tuple[str, ...]]:
+        if not self.categorical_features:
+            return {}
+        encoder = self.transformer.named_transformers_["categorical"].named_steps[
+            "encoder"
+        ]
+        return {
+            column: tuple(str(value) for value in values)
+            for column, values in zip(self.categorical_features, encoder.categories_)
+        }
+
     def transform(self, frame: pd.DataFrame) -> pd.DataFrame:
-        columns: dict[str, pd.Series] = {}
-        for column in self.numeric_features:
-            values = pd.to_numeric(frame[column], errors="coerce").fillna(
-                self.numeric_fill_values[column]
-            )
-            columns[column] = (values - self.numeric_means[column]) / self.numeric_stds[
-                column
-            ]
+        feature_frame = frame.loc[
+            :, [*self.numeric_features, *self.categorical_features]
+        ]
+        transformed = self.transformer.transform(feature_frame)
 
-        for column in CATEGORICAL_FEATURES:
-            series = frame[column].fillna("<missing>").astype(str) if column in frame else None
-            for value in self.categorical_values.get(column, tuple()):
-                feature_name = f"{column}__{value}"
-                if series is None:
-                    columns[feature_name] = pd.Series(0.0, index=frame.index)
-                else:
-                    columns[feature_name] = series.eq(value).astype(float)
-
-        return pd.DataFrame(columns, index=frame.index, columns=self.feature_names)
-
-
-@dataclass
-class _NativeLogisticRegression:
-    coefficients: np.ndarray
-    intercept: float
-
-    @classmethod
-    def fit(
-        cls,
-        x_train: pd.DataFrame,
-        y_train: Sequence[int],
-        strategy: str,
-        policy: BaselineTrainingPolicy,
-    ) -> "_NativeLogisticRegression":
-        x = x_train.to_numpy(dtype=float)
-        y = np.asarray(y_train, dtype=float)
-        coefficients = np.zeros(x.shape[1], dtype=float)
-        intercept = _logit_prior(y)
-        weights = _sample_weights(y, strategy)
-        if len(y) == 0:
-            return cls(coefficients=coefficients, intercept=intercept)
-
-        for _ in range(policy.logistic_max_iter):
-            logits = x @ coefficients + intercept
-            prediction = _sigmoid(logits)
-            error = (prediction - y) * weights
-            coefficients -= policy.logistic_learning_rate * (
-                (x.T @ error) / len(y) + policy.logistic_l2_penalty * coefficients
-            )
-            intercept -= policy.logistic_learning_rate * float(error.mean())
-
-        return cls(coefficients=coefficients, intercept=intercept)
-
-    def predict_proba(self, x: pd.DataFrame) -> np.ndarray:
-        logits = x.to_numpy(dtype=float) @ self.coefficients + self.intercept
-        return _sigmoid(logits)
-
-
-@dataclass(frozen=True)
-class _FittedLogisticModel:
-    model: object
-    coefficients: np.ndarray
-    detail: str
-
-    def predict_scores(self, x: pd.DataFrame) -> np.ndarray:
-        if isinstance(self.model, _NativeLogisticRegression):
-            return self.model.predict_proba(x)
-        return self.model.predict_proba(x)[:, 1]
+        return pd.DataFrame(
+            np.asarray(transformed, dtype=float),
+            index=frame.index,
+            columns=self.feature_names,
+        )
 
 
 def build_baseline_dataset(
@@ -243,14 +229,30 @@ def train_baseline_models(
     status_rows: list[dict[str, object]] = []
 
     for strategy in active_policy.class_imbalance_strategies:
-        logistic = _fit_logistic_regression(
+        logistic_model, detail = _fit_logistic_regression(
             transformed_by_split["train"],
             labels_by_split["train"],
             strategy=strategy,
             policy=active_policy,
         )
+        if logistic_model is None:
+            skip_status = "skipped_invalid_training_data"
+            status_rows.append(
+                _status_row("logistic_regression", strategy, skip_status, detail)
+            )
+            metric_rows.extend(
+                _skipped_metric_rows(
+                    "logistic_regression",
+                    strategy,
+                    labels_by_split,
+                    active_policy,
+                    skip_status,
+                )
+            )
+            continue
+
         status_rows.append(
-            _status_row("logistic_regression", strategy, "trained", logistic.detail)
+            _status_row("logistic_regression", strategy, "trained", detail)
         )
         metric_rows.extend(
             _evaluate_model(
@@ -258,7 +260,9 @@ def train_baseline_models(
                 strategy=strategy,
                 transformed_by_split=transformed_by_split,
                 labels_by_split=labels_by_split,
-                predict_scores=logistic.predict_scores,
+                predict_scores=lambda frame, model=logistic_model: model.predict_proba(
+                    frame
+                )[:, 1],
                 policy=active_policy,
             )
         )
@@ -267,7 +271,7 @@ def train_baseline_models(
                 "logistic_regression",
                 strategy,
                 preprocessor.feature_names,
-                logistic.coefficients,
+                np.asarray(logistic_model.coef_[0], dtype=float),
             )
         )
 
@@ -349,12 +353,6 @@ def compute_binary_metrics(
         return _empty_metric_values()
 
     predicted = scores >= threshold
-    true_positive = int(((predicted == 1) & (y == 1)).sum())
-    false_positive = int(((predicted == 1) & (y == 0)).sum())
-    false_negative = int(((predicted == 0) & (y == 1)).sum())
-    precision = _safe_divide(true_positive, true_positive + false_positive)
-    recall = _safe_divide(true_positive, true_positive + false_negative)
-    f1 = _safe_divide(2 * precision * recall, precision + recall)
 
     top_k_count = max(1, int(np.ceil(len(y) * top_k_fraction)))
     top_indices = np.argsort(-scores, kind="mergesort")[:top_k_count]
@@ -365,7 +363,7 @@ def compute_binary_metrics(
     return {
         "pr_auc": _average_precision(y, scores),
         "roc_auc": _roc_auc(y, scores),
-        "f1": f1,
+        "f1": float(f1_score(y, predicted, zero_division=0)),
         "recall_at_k": recall_at_k,
         "precision_at_k": precision_at_k,
     }
@@ -489,10 +487,6 @@ def _validate_policy(policy: BaselineTrainingPolicy) -> None:
 
 def _feature_columns(frame: pd.DataFrame) -> list[str]:
     return [column for column in frame.columns if column not in METADATA_COLUMNS]
-
-
-def _sorted_text_values(series: pd.Series) -> list[str]:
-    return sorted(series.fillna("<missing>").astype(str).unique().tolist())
 
 
 def _read_sample_index_limited(
@@ -653,48 +647,19 @@ def _fit_logistic_regression(
     y_train: np.ndarray,
     strategy: str,
     policy: BaselineTrainingPolicy,
-) -> _FittedLogisticModel:
+) -> tuple[LogisticRegression | None, str]:
     if np.unique(y_train).size < 2:
-        native = _NativeLogisticRegression.fit(
-            x_train,
-            y_train,
-            strategy=strategy,
-            policy=policy,
-        )
-        return _FittedLogisticModel(
-            model=native,
-            coefficients=native.coefficients,
-            detail="native_numpy_single_class",
-        )
-    try:
-        from sklearn.linear_model import LogisticRegression
-    except ModuleNotFoundError:
-        native = _NativeLogisticRegression.fit(
-            x_train,
-            y_train,
-            strategy=strategy,
-            policy=policy,
-        )
-        return _FittedLogisticModel(
-            model=native,
-            coefficients=native.coefficients,
-            detail="native_numpy",
-        )
+        return None, "train split에 단일 class만 있어 Logistic Regression 학습을 생략한다."
 
     class_weight = "balanced" if strategy == "balanced" else None
     model = LogisticRegression(
         class_weight=class_weight,
         max_iter=policy.logistic_max_iter,
-        C=1.0 / policy.logistic_l2_penalty if policy.logistic_l2_penalty > 0 else 1e6,
         solver="lbfgs",
         random_state=policy.random_state,
     )
     model.fit(x_train, y_train)
-    return _FittedLogisticModel(
-        model=model,
-        coefficients=np.asarray(model.coef_[0], dtype=float),
-        detail=f"sklearn class_weight={class_weight or 'none'}",
-    )
+    return model, f"sklearn class_weight={class_weight or 'none'}"
 
 
 def _coefficient_importance_rows(
@@ -757,62 +722,16 @@ def _status_row(
     }
 
 
-def _sample_weights(y: np.ndarray, strategy: str) -> np.ndarray:
-    if strategy != "balanced":
-        return np.ones_like(y, dtype=float)
-    positive_count = float(y.sum())
-    negative_count = float(len(y) - positive_count)
-    weights = np.ones_like(y, dtype=float)
-    if positive_count == 0 or negative_count == 0:
-        return weights
-    weights[y == 1] = len(y) / (2.0 * positive_count)
-    weights[y == 0] = len(y) / (2.0 * negative_count)
-    return weights
-
-
-def _sigmoid(values: np.ndarray) -> np.ndarray:
-    clipped = np.clip(values, -35, 35)
-    return 1.0 / (1.0 + np.exp(-clipped))
-
-
-def _logit_prior(y: np.ndarray) -> float:
-    if len(y) == 0:
-        return 0.0
-    positive_rate = float(np.clip(y.mean(), 1e-6, 1 - 1e-6))
-    return float(np.log(positive_rate / (1 - positive_rate)))
-
-
 def _average_precision(y_true: np.ndarray, scores: np.ndarray) -> float:
-    positive_count = int(y_true.sum())
-    if positive_count == 0:
+    if int(y_true.sum()) == 0:
         return np.nan
-    order = np.argsort(-scores, kind="mergesort")
-    sorted_labels = y_true[order]
-    true_positive = np.cumsum(sorted_labels)
-    precision = true_positive / np.arange(1, len(sorted_labels) + 1)
-    return float((precision * sorted_labels).sum() / positive_count)
+    return float(average_precision_score(y_true, scores))
 
 
 def _roc_auc(y_true: np.ndarray, scores: np.ndarray) -> float:
-    positive_count = int(y_true.sum())
-    negative_count = int(len(y_true) - positive_count)
-    if positive_count == 0 or negative_count == 0:
+    if np.unique(y_true).size < 2:
         return np.nan
-    order = np.argsort(scores, kind="mergesort")
-    sorted_scores = scores[order]
-    ranks = np.empty(len(scores), dtype=float)
-    start = 0
-    while start < len(sorted_scores):
-        end = start + 1
-        while end < len(sorted_scores) and sorted_scores[end] == sorted_scores[start]:
-            end += 1
-        average_rank = (start + 1 + end) / 2.0
-        ranks[order[start:end]] = average_rank
-        start = end
-    positive_rank_sum = float(ranks[y_true == 1].sum())
-    return (positive_rank_sum - positive_count * (positive_count + 1) / 2) / (
-        positive_count * negative_count
-    )
+    return float(roc_auc_score(y_true, scores))
 
 
 def _safe_divide(numerator: float, denominator: float) -> float:

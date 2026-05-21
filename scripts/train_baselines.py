@@ -64,13 +64,7 @@ def parse_args() -> argparse.Namespace:
         "--logistic-max-iter",
         type=int,
         default=300,
-        help="native Logistic Regression gradient descent 반복 횟수",
-    )
-    parser.add_argument(
-        "--logistic-learning-rate",
-        type=float,
-        default=0.05,
-        help="native Logistic Regression learning rate",
+        help="sklearn Logistic Regression 최대 반복 횟수",
     )
     parser.add_argument(
         "--lightgbm-n-estimators",
@@ -97,7 +91,6 @@ def main() -> None:
         threshold=args.threshold,
         top_k_fraction=args.top_k_fraction,
         logistic_max_iter=args.logistic_max_iter,
-        logistic_learning_rate=args.logistic_learning_rate,
         lightgbm_n_estimators=args.lightgbm_n_estimators,
         train_lightgbm=not args.skip_lightgbm,
     )

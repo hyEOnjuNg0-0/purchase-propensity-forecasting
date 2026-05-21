@@ -165,7 +165,7 @@ def test_preprocessor_fits_categories_and_imputation_on_train_only() -> None:
     assert "last_event_type__cart" in transformed.columns
     assert "last_price_bin__25-50" not in transformed.columns
     assert transformed.isna().sum().sum() == 0
-    assert preprocessor.numeric_fill_values["time_since_previous_event_minutes"] == 5.0
+    assert preprocessor.categorical_values["last_event_type"] == ("cart", "view")
 
 
 def test_compute_binary_metrics_returns_pr_roc_f1_and_top_k_metrics() -> None:
@@ -190,7 +190,6 @@ def test_train_baseline_models_writes_metrics_and_importance(tmp_path: Path) -> 
         policy=BaselineTrainingPolicy(
             class_imbalance_strategies=("none", "balanced"),
             logistic_max_iter=20,
-            logistic_learning_rate=0.2,
             train_lightgbm=False,
         ),
     )
