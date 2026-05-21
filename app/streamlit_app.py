@@ -98,6 +98,8 @@ def render_overview() -> None:
         """
     )
 
+    st.divider()
+
     st.subheader("사용 데이터")
     st.markdown(
         """
@@ -105,6 +107,8 @@ def render_overview() -> None:
         - 사용 데이터 : `2019-Oct.csv`에서 2019-10-10까지
         """
     )
+
+    st.divider()
 
     st.subheader("핵심 흐름")
     flow = pd.DataFrame(
