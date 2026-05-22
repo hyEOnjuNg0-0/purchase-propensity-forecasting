@@ -44,15 +44,18 @@ C:\PurchasePropensityForecasting
 |       |-- gru_model_status.csv
 |       |-- gru_report.md
 |       |-- gru_training_history.csv
+|       |-- final_model_comparison.csv
 |       |-- label_distribution.csv
 |       |-- labeling_policy.csv
-|       `-- labeling_report.md
+|       |-- labeling_report.md
+|       `-- model_interpretation_summary.md
 |-- data
 |   |-- 2019-Oct.csv
 |-- scripts
 |   |-- build_features.py
 |   |-- create_labels.py
 |   |-- train_baselines.py
+|   |-- build_final_report.py
 |   |-- train_gru.py
 |   |-- run_eda.py
 |   |-- profile_data.py
@@ -110,9 +113,12 @@ C:\PurchasePropensityForecasting
 - `src/purchase_time_forecasting/baseline_modeling.py`: Step 7 baseline 모델링 핵심 로직이다. `sample_id` 기준으로 `sample_index.csv`와 `tabular_feature_dataset.csv`를 연결하고, train split 기준 전처리, Logistic Regression 학습, LightGBM 선택 학습, PR-AUC/ROC-AUC/F1/Recall@K/Precision@K 평가, feature importance artifact 생성을 수행한다.
 - `scripts/train_baselines.py`: `ptf` 환경 래퍼로 실행하는 Step 7 CLI 진입점이다. 대용량 artifact 검증을 위해 split별 실제 sample 상한 옵션을 제공하며, 기본 산출물은 `artifacts/reports/model_metrics.csv`, `baseline_feature_importance.csv`, `baseline_model_status.csv`, `baseline_report.md`다.
 - `tests/test_baseline_modeling.py`: baseline dataset join, train split 기준 전처리, metric 계산, Logistic Regression class imbalance 비교, baseline artifact 저장 계약을 검증하는 pytest 테스트다.
-- `src/purchase_time_forecasting/streamlit_report.py`: Step 8 Streamlit 보고서 표시용 artifact 정리 로직이다. baseline artifact 존재 여부, 누락 artifact 생성 명령, test split metric 표, 최적 baseline 요약, LightGBM feature importance 상위 항목을 계산한다.
-- `app/streamlit_app.py`: Step 8 Streamlit 보고서 초안이다. 사이드바 목차로 Overview, Data Quality, Labeling, EDA, Features, Baseline Results, Next Step, Reproducibility 섹션을 선택해 볼 수 있으며, 각 섹션은 실제 artifact 기반으로 표시하고 artifact가 없을 때 모의 데이터 대신 생성 명령을 안내한다.
+- `src/purchase_time_forecasting/streamlit_report.py`: Step 8/10 Streamlit 보고서 표시용 artifact 정리 로직이다. baseline artifact 존재 여부, 누락 artifact 생성 명령, test split metric 표, 최적 baseline 요약, LightGBM feature importance 상위 항목, Logistic Regression/LightGBM/GRU 최종 비교표와 간단한 해석 요약을 계산한다.
+- `app/streamlit_app.py`: Step 8/10 Streamlit 보고서 초안이다. 사이드바 목차로 Overview, Data Quality, Labeling, EDA, Features, Baseline Results, Final Comparison, Reproducibility 섹션을 선택해 볼 수 있으며, 각 섹션은 실제 artifact 기반으로 표시하고 artifact가 없을 때 모의 데이터 대신 생성 명령을 안내한다.
 - `tests/test_streamlit_report.py`: Step 8 Streamlit 표시 로직의 artifact 상태, baseline test metric 정리, 최적 전략 선택, LightGBM feature importance 필터링을 검증하는 pytest 테스트다.
 - `src/purchase_time_forecasting/sequence_modeling.py`: Step 9 GRU sequence 모델 학습 유스케이스다. `sequence_feature_dataset.parquet`와 `sample_index.csv`를 `sample_id` 기준으로 연결하고, train split 기준 categorical sequence vocabulary, time gap log1p 표준화 scaler, 정수 token ID, numeric time gap 배열, padding, sequence length, label/split 배열을 생성한 뒤 PyTorch GRU classifier를 학습/평가한다. 입력 feature는 `event_type_sequence`, `product_id_sequence`, `category_id_sequence`, `price_bin_sequence`, `time_gap_minutes_sequence` 전체를 사용한다. 학습 중 `progress_callback`으로 epoch별 loss와 validation PR-AUC 로그를 확인할 수 있다.
 - `scripts/train_gru.py`: `ptf` 환경 래퍼로 실행하는 Step 9 CLI 진입점이다. sequence feature artifact 전체를 사용하는 GRU 모델을 학습하고 `artifacts/reports/gru_model_metrics.csv`, `gru_model_status.csv`, `gru_training_history.csv`, `gru_report.md`를 저장한다.
 - `tests/test_sequence_modeling.py`: Step 9 dataset과 GRU 학습 계약을 검증하는 테스트다. train split vocabulary/scaler fit 범위, max sequence length tail truncation, right padding, unknown token 처리, categorical/numeric sequence 입력 shape, label 연결, feature artifact 로드, 학습 로그, metric/status/history artifact 저장을 확인한다.
+- `scripts/build_final_report.py`: Step 10 최종 모델 비교 CLI 진입점이다. `model_metrics.csv`, `gru_model_metrics.csv`, `baseline_feature_importance.csv`를 읽어 validation PR-AUC 기준 대표 전략을 선택하고 `final_model_comparison.csv`, `model_interpretation_summary.md`를 생성한다.
+- `artifacts/reports/final_model_comparison.csv`: Logistic Regression, LightGBM, GRU의 train/validation/test metric을 동일 schema로 통합한 Step 10 비교 artifact다.
+- `artifacts/reports/model_interpretation_summary.md`: 최종 test PR-AUC 비교, sample count 기준 동일 비교 점검, LightGBM 주요 feature의 구매 행동 관점 해석, GRU와 baseline 차이에 대한 간단한 원인 가설을 담은 Step 10 markdown artifact다.

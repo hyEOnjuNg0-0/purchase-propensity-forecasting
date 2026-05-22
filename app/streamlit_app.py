@@ -14,8 +14,10 @@ if str(SRC_DIR) not in sys.path:
 
 from purchase_time_forecasting.streamlit_report import (  # noqa: E402
     BASELINE_BUILD_COMMAND,
+    FINAL_REPORT_BUILD_COMMAND,
     best_metric_summary,
     prepare_baseline_test_metrics,
+    prepare_final_test_metrics,
     select_best_strategy,
     top_feature_importance,
 )
@@ -33,6 +35,17 @@ BASELINE_METRIC_COLUMNS = {
     "f1": "F1",
     "recall_at_k": "Recall@K",
     "precision_at_k": "Precision@K",
+}
+FINAL_METRIC_COLUMNS = {
+    "model_display": "모델",
+    "sample_count": "test sample",
+    "positive_count": "positive",
+    "pr_auc": "PR-AUC",
+    "roc_auc": "ROC-AUC",
+    "f1": "F1",
+    "recall_at_k": "Recall@K",
+    "precision_at_k": "Precision@K",
+    "sample_contract_status": "sample 점검",
 }
 FEATURE_DESCRIPTIONS = {
     "prefix_length": "기준 시점까지 관측된 세션 내 이벤트 개수",
@@ -88,7 +101,7 @@ def render_navigation() -> str:
         "4. EDA",
         "5. Features",
         "6. Baseline Results",
-        "7. Next Step",
+        "7. Final Comparison",
         "8. Reproducibility",
     ]
     selected = st.sidebar.radio(
@@ -417,18 +430,60 @@ def render_baseline_results() -> None:
             )
 
 
-def render_next_steps() -> None:
+def render_final_comparison() -> None:
     render_section_title(
-        "Next Step",
-        "Step 10에서 수행할 최종 모델 비교 범위 정리",
+        "Final Comparison",
+        "Logistic Regression, LightGBM, GRU를 동일 metric schema로 비교",
     )
-    st.markdown(
-        """
-        Step 10에서는 Logistic Regression, LightGBM, GRU 결과를 동일 metric schema로
-        통합한다. 핵심 비교 기준은 PR-AUC이며, GRU가 baseline보다 높지 않더라도
-        현재 sequence 표현의 한계를 간단히 해석한다.
-        """
+    comparison = read_csv(str(REPORTS_DIR / "final_model_comparison.csv"))
+    interpretation = read_markdown(
+        str(REPORTS_DIR / "model_interpretation_summary.md")
     )
+    if comparison is None:
+        render_missing_artifact(
+            REPORTS_DIR / "final_model_comparison.csv",
+            FINAL_REPORT_BUILD_COMMAND,
+        )
+        return
+
+    test_metrics = prepare_final_test_metrics(comparison)
+    if test_metrics.empty:
+        st.info("표시 가능한 test split 최종 모델 비교 metric이 없습니다.")
+    else:
+        best = test_metrics.iloc[0]
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Best test model", str(best["model_display"]))
+        col2.metric("Best test PR-AUC", f"{float(best['pr_auc']):.4f}")
+        col3.metric("Best test ROC-AUC", f"{float(best['roc_auc']):.4f}")
+
+        st.divider()
+        st.subheader("Test 성능 비교")
+        display_columns = [
+            column for column in FINAL_METRIC_COLUMNS if column in test_metrics.columns
+        ]
+        st.dataframe(
+            test_metrics.loc[:, display_columns].rename(columns=FINAL_METRIC_COLUMNS),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.bar_chart(
+            test_metrics.loc[:, ["model_display", "pr_auc"]].set_index("model_display"),
+            height=260,
+        )
+
+    st.divider()
+    st.subheader("Train/Validation/Test 통합 비교")
+    st.dataframe(comparison, use_container_width=True, hide_index=True)
+
+    st.divider()
+    st.subheader("해석 요약")
+    if interpretation is None:
+        render_missing_artifact(
+            REPORTS_DIR / "model_interpretation_summary.md",
+            FINAL_REPORT_BUILD_COMMAND,
+        )
+    else:
+        st.markdown(interpretation)
 
 
 def render_reproducibility() -> None:
@@ -446,6 +501,7 @@ def render_reproducibility() -> None:
                 ".\\scripts\\run_ptf.ps1 python scripts\\build_features.py",
                 ".\\scripts\\run_ptf.ps1 python scripts\\train_baselines.py",
                 ".\\scripts\\run_ptf.ps1 python scripts\\train_gru.py",
+                ".\\scripts\\run_ptf.ps1 python scripts\\build_final_report.py",
                 ".\\scripts\\run_ptf.ps1 streamlit run app/streamlit_app.py",
             ]
         ),
@@ -531,7 +587,7 @@ def main() -> None:
         "4. EDA": render_eda,
         "5. Features": render_features,
         "6. Baseline Results": render_baseline_results,
-        "7. Next Step": render_next_steps,
+        "7. Final Comparison": render_final_comparison,
         "8. Reproducibility": render_reproducibility,
     }
     renderers[selected_section]()
