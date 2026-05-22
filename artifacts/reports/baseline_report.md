@@ -12,11 +12,11 @@
 - logistic_regression / none: trained (sklearn class_weight=none)
 - lightgbm / none: trained (lightgbm scale_pos_weight=1.000000)
 - logistic_regression / balanced: trained (sklearn class_weight=balanced)
-- lightgbm / balanced: trained (lightgbm scale_pos_weight=14.036584)
+- lightgbm / balanced: trained (lightgbm scale_pos_weight=14.456417)
 
 ## Validation PR-AUC
 
-- logistic_regression / none: PR-AUC 0.250463, ROC-AUC 0.712400, F1 0.151206
-- lightgbm / none: PR-AUC 0.297095, ROC-AUC 0.745729, F1 0.182267
-- logistic_regression / balanced: PR-AUC 0.244111, ROC-AUC 0.721175, F1 0.273178
-- lightgbm / balanced: PR-AUC 0.296197, ROC-AUC 0.746300, F1 0.255459
+- logistic_regression / none: PR-AUC 0.257940, ROC-AUC 0.717535, F1 0.180423
+- lightgbm / none: PR-AUC 0.299799, ROC-AUC 0.748071, F1 0.190897
+- logistic_regression / balanced: PR-AUC 0.255662, ROC-AUC 0.730905, F1 0.265329
+- lightgbm / balanced: PR-AUC 0.296763, ROC-AUC 0.748456, F1 0.276708

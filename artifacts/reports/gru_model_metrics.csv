@@ -1,0 +1,4 @@
+model_name,class_imbalance_strategy,split,sample_count,positive_count,pr_auc,roc_auc,f1,recall_at_k,precision_at_k,threshold,top_k_fraction,status
+gru,pos_weight,train,4229262,273625,0.339323,0.821988,0.242650,0.445588,0.288286,0.500000,0.100000,evaluated
+gru,pos_weight,validation,906259,63186,0.177210,0.673473,0.193038,0.300383,0.209432,0.500000,0.100000,evaluated
+gru,pos_weight,test,906252,60488,0.173462,0.680508,0.190954,0.310954,0.207545,0.500000,0.100000,evaluated

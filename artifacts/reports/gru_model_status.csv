@@ -1,0 +1,2 @@
+model_name,class_imbalance_strategy,status,detail
+gru,pos_weight,trained,"sequence_features=event_type_sequence+product_id_sequence+category_id_sequence+price_bin_sequence+time_gap_minutes_sequence, vocab_size=(event_type_sequence=4, product_id_sequence=10002, category_id_sequence=558, price_bin_sequence=9), max_sequence_length=50, embedding_dim=8, hidden_dim=16, epochs=3, batch_size=512, learning_rate=0.001000, device=cuda"
