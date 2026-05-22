@@ -234,6 +234,7 @@ artifacts/features
 1. GRU
    - 입력: event, category, price bin, time gap embedding
    - 목적: sequential pattern이 baseline 대비 성능을 개선하는지 검증
+   - vocabulary 정책: `product_id_sequence`와 `category_id_sequence`는 train split 빈도 기준 상위 10,000개 토큰만 embedding vocabulary에 포함하고 나머지는 `<unknown>`으로 처리한다.
 
 2. SASRec
    - 입력: sequence embedding + positional encoding

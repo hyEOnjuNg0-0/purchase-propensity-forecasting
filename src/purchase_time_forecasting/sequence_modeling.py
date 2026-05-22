@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
@@ -39,6 +40,8 @@ class SequenceDatasetPolicy:
 
     max_sequence_length: int = 50
     fit_split: str = "train"
+    product_id_vocabulary_top_k: int = 10_000
+    category_id_vocabulary_top_k: int = 10_000
 
 
 @dataclass(frozen=True)
@@ -610,7 +613,12 @@ def _build_sequence_vocabularies_from_joined(
 ) -> dict[str, EventTypeVocabulary]:
     train = joined.loc[joined["split"].astype(str).eq(policy.fit_split)]
     return {
-        column: _build_vocabulary_for_column(train[column], column)
+        column: _build_vocabulary_for_column(
+            train[column],
+            column,
+            max_sequence_length=policy.max_sequence_length,
+            top_k=_vocabulary_top_k_for_column(column, policy),
+        )
         for column in SEQUENCE_CATEGORICAL_COLUMNS
     }
 
@@ -621,8 +629,8 @@ def _fit_sequence_transforms_from_joined(
 ) -> tuple[dict[str, EventTypeVocabulary], TimeGapScaler]:
     """train split을 한 번만 순회해 categorical vocabulary와 time gap scaler를 fit한다."""
 
-    observed_tokens = {
-        column: set()
+    token_counts = {
+        column: Counter()
         for column in SEQUENCE_CATEGORICAL_COLUMNS
     }
     time_gap_values: list[float] = []
@@ -630,7 +638,7 @@ def _fit_sequence_transforms_from_joined(
     sequence_columns = [*SEQUENCE_CATEGORICAL_COLUMNS, "time_gap_minutes_sequence"]
     for row in train.loc[:, sequence_columns].itertuples(index=False, name=None):
         for column_index, column in enumerate(SEQUENCE_CATEGORICAL_COLUMNS):
-            observed_tokens[column].update(
+            token_counts[column].update(
                 _parse_sequence(row[column_index])[-policy.max_sequence_length:]
             )
         time_gap_values.extend(
@@ -641,8 +649,12 @@ def _fit_sequence_transforms_from_joined(
         )
 
     vocabularies = {
-        column: _build_vocabulary_from_tokens(tokens, column)
-        for column, tokens in observed_tokens.items()
+        column: _build_vocabulary_from_counts(
+            counts,
+            column,
+            top_k=_vocabulary_top_k_for_column(column, policy),
+        )
+        for column, counts in token_counts.items()
     }
     scaler = _build_time_gap_scaler(time_gap_values)
     return vocabularies, scaler
@@ -749,18 +761,25 @@ def _parse_non_negative_float(value: object) -> float:
 def _build_vocabulary_for_column(
     values: pd.Series,
     column: str,
+    max_sequence_length: int | None = None,
+    top_k: int | None = None,
 ) -> EventTypeVocabulary:
-    observed_tokens: set[str] = set()
+    token_counts: Counter[str] = Counter()
     for value in values:
-        observed_tokens.update(_parse_sequence(value))
+        tokens = _parse_sequence(value)
+        if max_sequence_length is not None:
+            tokens = tokens[-max_sequence_length:]
+        token_counts.update(tokens)
 
-    return _build_vocabulary_from_tokens(observed_tokens, column)
+    return _build_vocabulary_from_counts(token_counts, column, top_k=top_k)
 
 
-def _build_vocabulary_from_tokens(
-    observed_tokens: set[str],
+def _build_vocabulary_from_counts(
+    token_counts: Counter[str],
     column: str,
+    top_k: int | None = None,
 ) -> EventTypeVocabulary:
+    observed_tokens = set(token_counts)
     if column == "event_type_sequence":
         ordered_tokens = [
             token
@@ -772,7 +791,16 @@ def _build_vocabulary_from_tokens(
         )
     else:
         ordered_tokens = []
-        extra_tokens = sorted(observed_tokens - {PAD_TOKEN, UNKNOWN_TOKEN})
+        candidates = observed_tokens - {PAD_TOKEN, UNKNOWN_TOKEN}
+        extra_tokens = [
+            token
+            for token, _ in sorted(
+                ((token, token_counts[token]) for token in candidates),
+                key=lambda item: (-item[1], item[0]),
+            )
+        ]
+        if top_k is not None:
+            extra_tokens = extra_tokens[:top_k]
 
     token_to_id = {
         PAD_TOKEN: 0,
@@ -785,11 +813,26 @@ def _build_vocabulary_from_tokens(
     return EventTypeVocabulary(token_to_id=token_to_id)
 
 
+def _vocabulary_top_k_for_column(
+    column: str,
+    policy: SequenceDatasetPolicy,
+) -> int | None:
+    if column == "product_id_sequence":
+        return policy.product_id_vocabulary_top_k
+    if column == "category_id_sequence":
+        return policy.category_id_vocabulary_top_k
+    return None
+
+
 def _validate_policy(policy: SequenceDatasetPolicy) -> None:
     if policy.max_sequence_length <= 0:
         raise ValueError("max_sequence_length는 1 이상이어야 한다.")
     if policy.fit_split not in SPLITS:
         raise ValueError(f"지원하지 않는 fit_split 값: {policy.fit_split}")
+    if policy.product_id_vocabulary_top_k <= 0:
+        raise ValueError("product_id_vocabulary_top_k는 1 이상이어야 한다.")
+    if policy.category_id_vocabulary_top_k <= 0:
+        raise ValueError("category_id_vocabulary_top_k는 1 이상이어야 한다.")
 
 
 def _validate_training_policy(policy: GruTrainingPolicy) -> None:

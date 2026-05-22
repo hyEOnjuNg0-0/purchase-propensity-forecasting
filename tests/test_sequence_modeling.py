@@ -88,6 +88,40 @@ def test_event_type_vocabulary_uses_train_split_only() -> None:
     assert "purchase" not in vocabulary.token_to_id
 
 
+def test_product_and_category_vocabularies_keep_top_k_train_tokens_only() -> None:
+    policy = SequenceDatasetPolicy(
+        max_sequence_length=3,
+        product_id_vocabulary_top_k=2,
+        category_id_vocabulary_top_k=2,
+    )
+
+    dataset = build_gru_event_type_dataset(
+        _sample_index(),
+        _sequence_features(),
+        policy=policy,
+    )
+
+    product_vocab = dataset.vocabularies["product_id_sequence"]
+    category_vocab = dataset.vocabularies["category_id_sequence"]
+    product_feature_index = dataset.categorical_columns.index("product_id_sequence")
+    category_feature_index = dataset.categorical_columns.index("category_id_sequence")
+
+    assert SequenceDatasetPolicy().product_id_vocabulary_top_k == 10_000
+    assert SequenceDatasetPolicy().category_id_vocabulary_top_k == 10_000
+    assert set(product_vocab.token_to_id) == {PAD_TOKEN, UNKNOWN_TOKEN, "p1", "p2"}
+    assert set(category_vocab.token_to_id) == {PAD_TOKEN, UNKNOWN_TOKEN, "c1", "c2"}
+    assert dataset.categorical_token_ids[1, :, product_feature_index].tolist() == [
+        product_vocab.token_to_id["p1"],
+        product_vocab.token_to_id["p2"],
+        product_vocab.unknown_id,
+    ]
+    assert dataset.categorical_token_ids[1, :, category_feature_index].tolist() == [
+        category_vocab.token_to_id["c1"],
+        category_vocab.token_to_id["c2"],
+        category_vocab.unknown_id,
+    ]
+
+
 def test_gru_event_type_dataset_pads_sequences_and_links_labels() -> None:
     dataset = build_gru_event_type_dataset(
         _sample_index(),
