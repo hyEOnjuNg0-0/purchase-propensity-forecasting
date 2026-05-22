@@ -18,6 +18,7 @@ from purchase_time_forecasting.sequence_modeling import (  # noqa: E402
     SequenceDatasetPolicy,
     load_gru_event_type_dataset,
     train_gru_classifier,
+    validate_gru_device,
     write_gru_artifacts,
 )
 
@@ -96,7 +97,7 @@ def parse_args() -> argparse.Namespace:
         "--device",
         type=str,
         default="auto",
-        help="PyTorch device. 예: auto, cpu, cuda",
+        help="PyTorch device. 예: auto, cpu, cuda, gpu(cuda alias)",
     )
     parser.add_argument(
         "--disable-pos-weight",
@@ -114,6 +115,8 @@ def log_progress(message: str) -> None:
 def main() -> None:
     args = parse_args()
     log_progress("GRU 학습 스크립트 시작")
+    device = validate_gru_device(args.device)
+    log_progress(f"GRU device 요청 검증 완료: {args.device} -> {device}")
     dataset_policy = SequenceDatasetPolicy(
         max_sequence_length=args.max_sequence_length,
     )
@@ -121,6 +124,7 @@ def main() -> None:
         args.features_dir,
         policy=dataset_policy,
         max_samples_per_split=args.max_samples_per_split,
+        progress_callback=log_progress,
     )
     training_policy = GruTrainingPolicy(
         max_sequence_length=args.max_sequence_length,
@@ -132,7 +136,7 @@ def main() -> None:
         threshold=args.threshold,
         top_k_fraction=args.top_k_fraction,
         use_pos_weight=not args.disable_pos_weight,
-        device=args.device,
+        device=device,
     )
     result = train_gru_classifier(
         dataset,

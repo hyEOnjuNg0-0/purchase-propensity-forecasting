@@ -40,6 +40,14 @@ GRU, SASRec 같은 sequence model 입력용 feature다. sequence는 `--max-seque
 
 Step 9 GRU 모델은 위 sequence 입력 컬럼 전체를 사용한다. `event_type_sequence`, `product_id_sequence`, `category_id_sequence`, `price_bin_sequence`는 train split에서 fit한 vocabulary로 embedding index를 만들고, `time_gap_minutes_sequence`는 train split에서 fit한 `log1p` 표준화 값으로 GRU 입력에 결합한다.
 
+GRU 학습 전처리는 다음 원칙을 따른다.
+
+- `sample_index.csv`에서는 학습에 필요한 `sample_id`, `split`, `label`만 로드한다.
+- `sequence_feature_dataset.parquet`에서는 GRU 입력 sequence 컬럼만 로드한다.
+- train split을 한 번 순회해 categorical vocabulary와 time gap scaler를 fit하고, 전체 sample을 한 번 순회해 tensor 입력을 생성한다.
+- categorical token 배열은 메모리 사용량을 줄이기 위해 NumPy `int32`로 보관하고, PyTorch `DataLoader` 생성 시 embedding 입력에 맞게 `long` tensor로 변환한다.
+- CLI는 데이터 로드 전에 `--device` 값을 먼저 검증한다. `gpu`는 `cuda` alias로 처리한다.
+
 ## 학습 입력 제외 컬럼
 
 아래 컬럼은 artifact 연결, 평가, audit 용도로만 사용하며 모델 입력 feature로 학습하지 않는다.

@@ -22,6 +22,7 @@ from purchase_time_forecasting.sequence_modeling import (  # noqa: E402
     build_gru_event_type_dataset,
     load_gru_event_type_dataset,
     train_gru_classifier,
+    validate_gru_device,
     write_gru_artifacts,
 )
 
@@ -101,6 +102,8 @@ def test_gru_event_type_dataset_pads_sequences_and_links_labels() -> None:
     assert dataset.sequence_lengths.tolist() == [1, 2, 2, 2]
     assert dataset.categorical_columns == SEQUENCE_CATEGORICAL_COLUMNS
     assert dataset.categorical_token_ids.shape == (4, 2, 4)
+    assert str(dataset.categorical_token_ids.dtype) == "int32"
+    assert str(dataset.labels.dtype) == "int8"
     assert dataset.time_gap_values.shape == (4, 2)
     assert dataset.event_type_token_ids[0].tolist() == [
         dataset.vocabulary.token_to_id["view"],
@@ -166,6 +169,34 @@ def test_load_gru_event_type_dataset_reads_feature_artifacts(tmp_path: Path) -> 
     assert dataset.event_type_token_ids.shape == (4, 2)
     assert dataset.categorical_token_ids.shape == (4, 2, 4)
     assert dataset.time_gap_values.shape == (4, 2)
+
+
+def test_load_gru_event_type_dataset_reports_preprocessing_progress(tmp_path: Path) -> None:
+    features_dir = tmp_path / "features"
+    features_dir.mkdir()
+    _sample_index().to_csv(
+        features_dir / "sample_index.csv",
+        index=False,
+        encoding="utf-8",
+    )
+    _sequence_features().to_parquet(
+        features_dir / "sequence_feature_dataset.parquet",
+        index=False,
+    )
+    messages: list[str] = []
+
+    load_gru_event_type_dataset(
+        features_dir,
+        policy=SequenceDatasetPolicy(max_sequence_length=2),
+        progress_callback=messages.append,
+    )
+
+    assert "GRU sample_index 로드 시작" in messages
+    assert "GRU sequence tensor 인코딩 완료" in messages
+
+
+def test_validate_gru_device_checks_request_before_data_loading() -> None:
+    assert validate_gru_device("cpu") == "cpu"
 
 
 def test_gru_event_type_dataset_requires_matching_sample_ids() -> None:
