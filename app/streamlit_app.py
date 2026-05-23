@@ -612,21 +612,6 @@ def _relative_path(path: Path) -> str:
         return str(path)
 
 
-def _lookup_metric(frame: pd.DataFrame | None, metric_name: str) -> float | None:
-    if frame is None or {"metric", "value"} - set(frame.columns):
-        return None
-    values = frame.loc[frame["metric"].astype(str).eq(metric_name), "value"]
-    if values.empty:
-        return None
-    return pd.to_numeric(values.iloc[0], errors="coerce")
-
-
-def _format_ratio(value: float | None) -> str:
-    if value is None or pd.isna(value):
-        return "artifact 없음"
-    return f"{float(value):.2%}"
-
-
 def _format_float(value: object) -> str:
     numeric_value = pd.to_numeric(value, errors="coerce")
     if pd.isna(numeric_value):
