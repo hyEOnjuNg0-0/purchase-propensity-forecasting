@@ -18,7 +18,7 @@
 | 데이터 처리 | pandas 2.3.3 |
 | Parquet 저장 | pyarrow 24.0.0 |
 | 테스트 | pytest 9.0.3 |
-| 대시보드 | Streamlit 1.57.0 |
+| 대시보드 | Streamlit 1.57.0, Altair 6.1.0 |
 | Baseline 모델 | scikit-learn 1.7.2, LightGBM 4.6.0 |
 | Sequence 모델 | PyTorch 2.6.0+cu124 |
 | GPU | NVIDIA GeForce MX450, CUDA 12.4 PyTorch wheel |
