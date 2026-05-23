@@ -11,7 +11,7 @@ if str(SRC_DIR) not in sys.path:
 
 import pandas as pd  # noqa: E402
 
-from purchase_time_forecasting.streamlit_report import (  # noqa: E402
+from purchase_conversion_prediction.streamlit_report import (  # noqa: E402
     BASELINE_BUILD_COMMAND,
     DOCKER_BUILD_COMMAND,
     DOCKER_RUN_COMMAND,

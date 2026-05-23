@@ -8,8 +8,8 @@ from typing import Iterable
 
 import pandas as pd
 
-from purchase_time_forecasting.data_profiling import EVENT_TIME_FORMAT
-from purchase_time_forecasting.labeling import LABEL_WINDOW_MINUTES, LabelingPolicy
+from purchase_conversion_prediction.data_profiling import EVENT_TIME_FORMAT
+from purchase_conversion_prediction.labeling import LABEL_WINDOW_MINUTES, LabelingPolicy
 
 
 PRICE_BINS = (-float("inf"), 25.0, 50.0, 100.0, 250.0, 500.0, 1000.0, float("inf"))

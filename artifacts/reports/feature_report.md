@@ -2,7 +2,7 @@
 
 ## 핵심 요약
 
-- 대상 파일: `C:\PurchasePropensityForecasting\data\2019-Oct.csv`
+- 대상 파일: `C:\PurchaseConversionPrediction\data\2019-Oct.csv`
 - 입력 row 제한: 없음
 - 종료 일시 필터: 2019-10-05 23:59:59.999999999+00:00
 - feature sample 수: 6,041,773

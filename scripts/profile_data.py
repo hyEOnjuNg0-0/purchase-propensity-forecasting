@@ -12,7 +12,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from purchase_time_forecasting.data_profiling import (  # noqa: E402
+from purchase_conversion_prediction.data_profiling import (  # noqa: E402
     profile_csv,
     write_profile_artifacts,
 )

@@ -13,7 +13,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from purchase_time_forecasting.sequence_modeling import (  # noqa: E402
+from purchase_conversion_prediction.sequence_modeling import (  # noqa: E402
     GruTrainingPolicy,
     SequenceDatasetPolicy,
     load_gru_event_type_dataset,

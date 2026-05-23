@@ -13,8 +13,8 @@ import torch
 from torch import nn
 from torch.utils import data
 
-from purchase_time_forecasting.baseline_modeling import compute_binary_metrics
-from purchase_time_forecasting.feature_engineering import (
+from purchase_conversion_prediction.baseline_modeling import compute_binary_metrics
+from purchase_conversion_prediction.feature_engineering import (
     EVENT_TYPES,
     SEQUENCE_DELIMITER,
 )

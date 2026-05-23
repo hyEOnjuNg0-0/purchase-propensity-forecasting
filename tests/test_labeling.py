@@ -11,7 +11,7 @@ if str(SRC_DIR) not in sys.path:
 
 import pandas as pd  # noqa: E402
 
-from purchase_time_forecasting.labeling import (  # noqa: E402
+from purchase_conversion_prediction.labeling import (  # noqa: E402
     LabelingPolicy,
     build_label_distribution_rows,
     create_prefix_labels,

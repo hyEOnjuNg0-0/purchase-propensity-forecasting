@@ -11,7 +11,7 @@ if str(SRC_DIR) not in sys.path:
 
 import pandas as pd  # noqa: E402
 
-from purchase_time_forecasting.feature_engineering import (  # noqa: E402
+from purchase_conversion_prediction.feature_engineering import (  # noqa: E402
     FeatureEngineeringPolicy,
     build_feature_artifacts,
     build_feature_dataset,

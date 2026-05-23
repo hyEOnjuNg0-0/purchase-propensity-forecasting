@@ -17,9 +17,9 @@ FINAL_REPORT_BUILD_COMMAND = (
 )
 PYTEST_COMMAND = ".\\scripts\\run_ptf.ps1 python -m pytest"
 STREAMLIT_RUN_COMMAND = ".\\scripts\\run_ptf.ps1 streamlit run app/streamlit_app.py"
-DOCKER_BUILD_COMMAND = "docker build -t purchase-propensity-report ."
+DOCKER_BUILD_COMMAND = "docker build -t purchase-conversion-prediction-report ."
 DOCKER_RUN_COMMAND = (
-    "docker run --rm -p 8501:8501 purchase-propensity-report"
+    "docker run --rm -p 8501:8501 purchase-conversion-prediction-report"
 )
 FEATURE_DESCRIPTIONS = {
     "prefix_length": "기준 시점까지 관측된 세션 내 이벤트 개수",

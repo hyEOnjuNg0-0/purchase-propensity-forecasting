@@ -1,4 +1,4 @@
-# Purchase Propensity Forecasting
+# PurchaseConversionPrediction
 
 세션 내 사용자 행동 이력을 기반으로 향후 30분 내 구매 가능성을 예측한 결과를 Streamlit 보고서로 확인하는 프로젝트입니다.
 
@@ -18,25 +18,25 @@ docker --version
 
 ```powershell
 git clone <repo-url>
-cd PurchasePropensityForecasting
+cd PurchaseConversionPrediction
 ```
 
 이미 저장소를 받은 상태라면 프로젝트 루트에서 실행합니다.
 
 ```powershell
-cd C:\PurchasePropensityForecasting
+cd C:\PurchaseConversionPrediction
 ```
 
 ### 3. 이미지 빌드
 
 ```powershell
-docker build -t purchase-propensity-report .
+docker build -t purchase-conversion-prediction-report .
 ```
 
 ### 4. 보고서 실행
 
 ```powershell
-docker run --rm -p 8501:8501 purchase-propensity-report
+docker run --rm -p 8501:8501 purchase-conversion-prediction-report
 ```
 
 ### 5. 브라우저에서 확인

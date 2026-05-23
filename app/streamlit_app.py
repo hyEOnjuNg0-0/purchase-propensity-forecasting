@@ -13,7 +13,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from purchase_time_forecasting.streamlit_report import (  # noqa: E402
+from purchase_conversion_prediction.streamlit_report import (  # noqa: E402
     BASELINE_BUILD_COMMAND,
     FINAL_REPORT_BUILD_COMMAND,
     best_metric_summary,
@@ -990,7 +990,7 @@ def main() -> None:
         layout="wide",
     )
     st.title("30분 내 구매 확률 예측")
-    st.caption("세션 행동 prefix 기반 Purchase Propensity Forecasting 결과 보고서")
+    st.caption("세션 행동 prefix 기반 PurchaseConversionPrediction 결과 보고서")
 
     selected_section = render_navigation()
     renderers = {

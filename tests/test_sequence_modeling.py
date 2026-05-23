@@ -11,7 +11,7 @@ if str(SRC_DIR) not in sys.path:
 
 import pandas as pd  # noqa: E402
 
-from purchase_time_forecasting.sequence_modeling import (  # noqa: E402
+from purchase_conversion_prediction.sequence_modeling import (  # noqa: E402
     PAD_TOKEN,
     SEQUENCE_CATEGORICAL_COLUMNS,
     UNKNOWN_TOKEN,

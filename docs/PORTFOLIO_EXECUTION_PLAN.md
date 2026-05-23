@@ -331,7 +331,7 @@
 산출물:
 
 - 최종 Streamlit 결과 보고서
-- Docker 실행 명령: `docker build -t purchase-propensity-report .`, `docker run --rm -p 8501:8501 purchase-propensity-report`
+- Docker 실행 명령: `docker build -t purchase-conversion-prediction-report .`, `docker run --rm -p 8501:8501 purchase-conversion-prediction-report`
 - 테스트 결과
 - 후속 개선안 요약: SASRec, TiSASRec, SHAP, attention/embedding 분석은 필수 구현 밖의 후속 개선안으로 표시
 

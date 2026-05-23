@@ -11,7 +11,7 @@ if str(SRC_DIR) not in sys.path:
 
 import pandas as pd  # noqa: E402
 
-from purchase_time_forecasting.baseline_modeling import (  # noqa: E402
+from purchase_conversion_prediction.baseline_modeling import (  # noqa: E402
     BaselineTrainingPolicy,
     TabularPreprocessor,
     build_baseline_dataset,

@@ -8,7 +8,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from purchase_time_forecasting.data_profiling import (
+from purchase_conversion_prediction.data_profiling import (
     ALLOWED_EVENT_TYPES,
     EVENT_TIME_FORMAT,
     REQUIRED_COLUMNS,

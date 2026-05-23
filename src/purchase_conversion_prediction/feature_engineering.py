@@ -8,9 +8,9 @@ from typing import Iterable
 
 import pandas as pd
 
-from purchase_time_forecasting.data_profiling import EVENT_TIME_FORMAT
-from purchase_time_forecasting.exploratory_analysis import PRICE_BAND_LABELS, PRICE_BINS
-from purchase_time_forecasting.labeling import LABEL_WINDOW_MINUTES
+from purchase_conversion_prediction.data_profiling import EVENT_TIME_FORMAT
+from purchase_conversion_prediction.exploratory_analysis import PRICE_BAND_LABELS, PRICE_BINS
+from purchase_conversion_prediction.labeling import LABEL_WINDOW_MINUTES
 
 
 EVENT_TYPES = ("view", "cart", "remove_from_cart", "purchase")

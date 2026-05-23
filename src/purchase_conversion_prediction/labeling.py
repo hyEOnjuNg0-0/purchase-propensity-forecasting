@@ -8,7 +8,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from purchase_time_forecasting.data_profiling import EVENT_TIME_FORMAT
+from purchase_conversion_prediction.data_profiling import EVENT_TIME_FORMAT
 
 
 LABEL_WINDOW_MINUTES = 30

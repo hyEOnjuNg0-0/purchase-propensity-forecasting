@@ -13,7 +13,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from purchase_time_forecasting.baseline_modeling import (  # noqa: E402
+from purchase_conversion_prediction.baseline_modeling import (  # noqa: E402
     BaselineTrainingPolicy,
     load_baseline_dataset,
     train_baseline_models,

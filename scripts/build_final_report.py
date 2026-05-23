@@ -14,7 +14,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from purchase_time_forecasting.streamlit_report import (  # noqa: E402
+from purchase_conversion_prediction.streamlit_report import (  # noqa: E402
     build_final_model_comparison,
     build_model_interpretation_summary,
     write_final_report_artifacts,
