@@ -289,7 +289,7 @@ def render_eda() -> None:
             "시간대별 구매율",
             REPORTS_DIR / "eda_hourly_purchase_rate.csv",
             "hour",
-            "purchase_rate",
+            "positive_rate",
         ),
     ]
 
@@ -310,6 +310,7 @@ def render_eda() -> None:
                 )
                 st.bar_chart(chart_frame.set_index(index_column), height=260)
             st.dataframe(frame, use_container_width=True, hide_index=True)
+            st.markdown(_build_eda_plain_interpretation(frame, index_column, value_column))
 
 
 def render_features() -> None:
@@ -656,6 +657,90 @@ def _format_float(value: object) -> str:
     if pd.isna(numeric_value):
         return "N/A"
     return f"{float(numeric_value):.4f}"
+
+
+def _format_percent(value: object) -> str:
+    numeric_value = pd.to_numeric(value, errors="coerce")
+    if pd.isna(numeric_value):
+        return "N/A"
+    return f"{float(numeric_value):.2%}"
+
+
+def _build_eda_plain_interpretation(
+    frame: pd.DataFrame,
+    index_column: str,
+    value_column: str,
+) -> str:
+    if frame.empty or {index_column, value_column} - set(frame.columns):
+        return "- 해석: 표시 가능한 EDA 요약 없음."
+
+    working = frame.copy()
+    working[value_column] = pd.to_numeric(working[value_column], errors="coerce")
+
+    count_column = _first_existing_column(working, ["sample_count", "session_count"])
+    positive_column = _first_existing_column(
+        working,
+        ["positive_count", "purchase_session_count"],
+    )
+    if count_column is not None:
+        working[count_column] = pd.to_numeric(working[count_column], errors="coerce")
+        working = working.loc[working[count_column].fillna(0).gt(0)]
+
+    working = working.dropna(subset=[value_column])
+    if working.empty:
+        return "- 해석: 유효한 EDA rate 없음."
+
+    highest = working.loc[working[value_column].idxmax()]
+    lowest = working.loc[working[value_column].idxmin()]
+    spread = float(highest[value_column]) - float(lowest[value_column])
+
+    lines = [
+        (
+            f"- 최고 구간: `{highest[index_column]}` "
+            f"({_format_percent(highest[value_column])})."
+        ),
+        (
+            f"- 최저 구간: `{lowest[index_column]}` "
+            f"({_format_percent(lowest[value_column])})."
+        ),
+        f"- 구간 차이: `{spread * 100:.2f}%p`.",
+    ]
+
+    if count_column is not None and positive_column is not None:
+        working[positive_column] = pd.to_numeric(
+            working[positive_column],
+            errors="coerce",
+        )
+        total_count = working[count_column].sum()
+        total_positive = working[positive_column].sum()
+        if total_count > 0:
+            lines.append(
+                f"- 전체 기준 rate: {_format_percent(total_positive / total_count)}."
+            )
+
+    lines.append(_eda_context_sentence(index_column, str(highest[index_column])))
+    return "\n".join(lines)
+
+
+def _first_existing_column(frame: pd.DataFrame, candidates: list[str]) -> str | None:
+    for column in candidates:
+        if column in frame.columns:
+            return column
+    return None
+
+
+def _eda_context_sentence(index_column: str, highest_label: str) -> str:
+    if index_column == "session_length_band":
+        return "- 의미: 세션 길이에 따라 구매율이 달라져 탐색 깊이가 구매 예측 feature로 유효."
+    if index_column == "sequence_pattern":
+        if "cart" in highest_label:
+            return "- 의미: `cart` 포함 행동 패턴이 강한 구매 의도 신호."
+        return "- 의미: 초기 행동 순서만으로도 구매율 차이 발생."
+    if index_column == "price_band":
+        return "- 의미: 가격대별 positive 비율 차이 확인. 가격 feature의 보조 설명력 근거."
+    if index_column == "hour":
+        return "- 의미: 시간대별 positive 비율 변동 확인. hour feature 사용 근거."
+    return "- 의미: 구간별 rate 차이를 통해 feature 후보의 설명력 확인."
 
 
 def _prepare_gru_metrics(metrics: pd.DataFrame) -> pd.DataFrame:
