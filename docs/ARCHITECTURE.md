@@ -28,6 +28,7 @@ C:\PurchasePropensityForecasting
 |       |-- data_profile_missing_values.csv
 |       |-- data_profile_report.md
 |       |-- data_profile_summary.csv
+|       |-- raw_data_preview.csv
 |       |-- data_quality_issues_draft.csv
 |       |-- eda_category_conversion.csv
 |       |-- eda_hourly_purchase_rate.csv
@@ -93,7 +94,7 @@ C:\PurchasePropensityForecasting
 
 ## 구성 변경 내역
 
-- `src/purchase_time_forecasting/data_profiling.py`: Step 1 데이터 프로파일링 핵심 로직이다. 대용량 CSV를 chunk 단위로 읽어 row count, dtype, memory footprint, 시간 범위, event_type 분포, 고유값 수, purchase 비율을 계산한다.
+- `src/purchase_time_forecasting/data_profiling.py`: Step 1 데이터 프로파일링 핵심 로직이다. 대용량 CSV를 chunk 단위로 읽어 row count, dtype, memory footprint, 시간 범위, event_type 분포, 고유값 수, purchase 비율을 계산하고 Streamlit Overview용 원천 데이터 상위 15행 preview artifact를 생성한다.
 - `scripts/profile_data.py`: `ptf` 환경 래퍼로 실행하는 Step 1 CLI 진입점이다.
 - `tests/test_data_profiling.py`: 프로파일링 계산과 artifact 저장 계약을 검증하는 테스트다.
 - `src/purchase_time_forecasting/data_quality.py`: Step 2 데이터 신뢰성 검증 핵심 로직이다. 필수 컬럼, 결측률, 이상 가격, 완전 중복 row, 세션 내 시간 역전, 극단 세션, purchase/비purchase 세션 차이를 검증한다.
@@ -110,7 +111,7 @@ C:\PurchasePropensityForecasting
 - `tests/test_feature_engineering.py`: feature prefix 누수 방지, raw ID/model input 분리, train split 기준 encoder/scaler fit 범위, 공통 sample 계약, tabular/sequence artifact 저장 계약을 검증하는 pytest 테스트다.
 - `pytest.ini`: pytest 임시 파일을 저장소 내부 `.pytest_tmp_current`에 생성하도록 고정하고 cache provider를 비활성화한다. 기존 `.pytest_tmp` 및 `.pytest_cache` 접근 권한 문제와 무관하게 `.\scripts\run_ptf.ps1 python -m pytest` 명령이 동작하도록 분리한다.
 - `artifacts/features`: Step 5 feature dataset 생성물 디렉터리다. `sample_index.csv`, `tabular_feature_dataset.csv`, `sequence_feature_dataset.parquet`로 모델 공통 sample index와 입력 feature를 분리한다. 대용량 산출물이므로 현재 `.gitignore` 정책상 추적 대상은 아니며 로컬 재생성 대상으로 둔다.
-- `artifacts/reports`: Step 1/2/3/4/5 실행 결과를 저장하는 리포트 artifact 디렉터리다.
+- `artifacts/reports`: Step 1/2/3/4/5 실행 결과를 저장하는 리포트 artifact 디렉터리다. `raw_data_preview.csv`는 원천 데이터 구조를 Overview에서 보여주기 위한 상위 15행 preview다.
 - `docs/FEATURE_ARTIFACT_REFERENCE.md`: `tabular_feature_dataset.csv`와 `sequence_feature_dataset.parquet`의 모델 입력 컬럼 이름과 의미를 정리한 문서다.
 - `src/purchase_time_forecasting/baseline_modeling.py`: Step 7 baseline 모델링 핵심 로직이다. `sample_id` 기준으로 `sample_index.csv`와 `tabular_feature_dataset.csv`를 연결하고, train split 기준 전처리, Logistic Regression 학습, LightGBM 선택 학습, PR-AUC/ROC-AUC/F1/Recall@K/Precision@K 평가, feature importance artifact 생성을 수행한다.
 - `scripts/train_baselines.py`: `ptf` 환경 래퍼로 실행하는 Step 7 CLI 진입점이다. 대용량 artifact 검증을 위해 split별 실제 sample 상한 옵션을 제공하며, 기본 산출물은 `artifacts/reports/model_metrics.csv`, `baseline_feature_importance.csv`, `baseline_model_status.csv`, `baseline_report.md`다.

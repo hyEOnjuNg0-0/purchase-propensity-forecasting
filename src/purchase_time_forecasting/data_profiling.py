@@ -336,6 +336,11 @@ def write_profile_artifacts(profile: DataProfile, reports_dir: Path) -> None:
     output_dir = Path(reports_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    build_raw_data_preview(profile.source_path).to_csv(
+        output_dir / "raw_data_preview.csv",
+        index=False,
+        encoding="utf-8",
+    )
     _write_csv(output_dir / "data_profile_summary.csv", build_summary_rows(profile))
     _write_csv(
         output_dir / "data_profile_event_type_distribution.csv",
@@ -353,6 +358,12 @@ def write_profile_artifacts(profile: DataProfile, reports_dir: Path) -> None:
         build_markdown_report(profile),
         encoding="utf-8",
     )
+
+
+def build_raw_data_preview(csv_path: Path, row_count: int = 15) -> pd.DataFrame:
+    """Streamlit Overview에 표시할 원천 CSV 상위 행 preview를 생성한다."""
+
+    return pd.read_csv(Path(csv_path), nrows=row_count)
 
 
 def build_markdown_report(profile: DataProfile) -> str:
@@ -434,4 +445,3 @@ def _format_bytes(value: int) -> str:
 
 def _format_ratio(value: float) -> str:
     return f"{value:.6f}"
-

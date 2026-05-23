@@ -14,6 +14,7 @@ if str(SRC_DIR) not in sys.path:
 from purchase_time_forecasting.data_profiling import (  # noqa: E402
     build_event_type_rows,
     build_quality_issue_rows,
+    build_raw_data_preview,
     build_summary_rows,
     profile_csv,
     write_profile_artifacts,
@@ -73,7 +74,9 @@ class DataProfilingTest(unittest.TestCase):
 
             output_dir = Path(temp_dir) / "reports"
             write_profile_artifacts(profile, output_dir)
+            preview = build_raw_data_preview(csv_path, row_count=1)
 
+            self.assertTrue((output_dir / "raw_data_preview.csv").exists())
             self.assertTrue((output_dir / "data_profile_summary.csv").exists())
             self.assertTrue((output_dir / "data_profile_report.md").exists())
 
@@ -81,8 +84,22 @@ class DataProfilingTest(unittest.TestCase):
         self.assertEqual(event_rows[0]["event_type"], "wishlist")
         self.assertTrue(any(row["issue"] == "허용 범위 밖 event_type" for row in issue_rows))
         self.assertTrue(any(row["issue"] == "event_time 파싱 실패" for row in issue_rows))
+        self.assertEqual(len(preview), 1)
+        self.assertEqual(
+            preview.columns.tolist(),
+            [
+                "event_time",
+                "event_type",
+                "product_id",
+                "category_id",
+                "category_code",
+                "brand",
+                "price",
+                "user_id",
+                "user_session",
+            ],
+        )
 
 
 if __name__ == "__main__":
     unittest.main()
-

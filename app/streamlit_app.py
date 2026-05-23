@@ -27,6 +27,7 @@ from purchase_time_forecasting.streamlit_report import (  # noqa: E402
 
 ARTIFACTS_DIR = REPO_ROOT / "artifacts"
 REPORTS_DIR = ARTIFACTS_DIR / "reports"
+RAW_DATA_PREVIEW_PATH = REPORTS_DIR / "raw_data_preview.csv"
 
 BASELINE_METRIC_COLUMNS = {
     "model_display": "모델",
@@ -157,6 +158,16 @@ def render_overview() -> None:
         - 학습 데이터 : `2019-Oct.csv`의 2019-10-05까지
         """
     )
+    raw_preview = read_csv(str(RAW_DATA_PREVIEW_PATH))
+    st.subheader("원천 데이터 예시")
+    if raw_preview is None:
+        render_missing_artifact(
+            RAW_DATA_PREVIEW_PATH,
+            ".\\scripts\\run_ptf.ps1 python scripts\\profile_data.py",
+        )
+    else:
+        st.caption("`2019-Oct.csv` 상위 15행")
+        st.dataframe(raw_preview.head(15), use_container_width=True, hide_index=True)
 
     st.divider()
 
@@ -915,8 +926,16 @@ def _build_final_plain_interpretation(test_metrics: pd.DataFrame) -> str:
 
     best = test_metrics.iloc[0]
     lines = [
-        f"- 최종 비교: `{best['model_display']}`가 test PR-AUC `{_format_float(best['pr_auc'])}`로 최고",
-        "- 의미: 실제 구매 가능성이 큰 sample을 더 앞순위에 배치",
+        "#### 최종 결론",
+        (
+            f"- test PR-AUC 기준 최종 선택 모델은 `{best['model_display']}`이다. "
+            f"PR-AUC `{_format_float(best['pr_auc'])}`, "
+            f"ROC-AUC `{_format_float(best['roc_auc'])}`를 기록했다."
+        ),
+        (
+            "- PR-AUC를 우선 지표로 둔 이유는 purchase label이 적은 불균형 문제에서 "
+            "구매 가능성이 높은 sample을 앞순위에 배치하는 능력이 더 중요하기 때문이다."
+        ),
     ]
 
     contract_status = (
@@ -929,14 +948,51 @@ def _build_final_plain_interpretation(test_metrics: pd.DataFrame) -> str:
     if contract_status:
         if contract_status == ["matched_by_split_counts"]:
             lines.append(
-                "- 비교 조건: 세 모델의 test sample 수와 positive 수 일치. 입력 표현 차이 비교 가능"
+                (
+                    "- 비교 조건: 세 모델 모두 같은 test sample 수와 positive 수로 평가됐다. "
+                    "따라서 성능 차이는 입력 표현과 모델 구조 차이로 해석할 수 있다."
+                )
             )
         else:
             lines.append(
-                "- 비교 조건 주의: sample 점검 결과 불일치. 최종 결론 전 비교 조건 확인 필요"
+                "- 비교 조건 주의: sample 점검 결과가 불일치하므로 최종 결론 전 평가 조건 확인이 필요하다."
             )
 
+    lines.extend(["", "#### 모델별 해석"])
+
+    logistic_rows = test_metrics.loc[
+        test_metrics["model_name"].astype(str).eq("logistic_regression")
+    ]
+    lightgbm_rows = test_metrics.loc[
+        test_metrics["model_name"].astype(str).eq("lightgbm")
+    ]
     gru_rows = test_metrics.loc[test_metrics["model_name"].astype(str).eq("gru")]
+
+    if not logistic_rows.empty:
+        logistic = logistic_rows.iloc[0]
+        lines.append(
+            (
+                f"- Logistic Regression: PR-AUC `{_format_float(logistic['pr_auc'])}`. "
+                "단순 선형 baseline으로 문제의 최소 기준 성능을 제공한다."
+            )
+        )
+    if not lightgbm_rows.empty:
+        lightgbm = lightgbm_rows.iloc[0]
+        lines.append(
+            (
+                f"- LightGBM: PR-AUC `{_format_float(lightgbm['pr_auc'])}`. "
+                "prefix 길이, cart 누적 횟수, 가격, 시간대 같은 tabular feature의 비선형 조합을 가장 잘 활용했다."
+            )
+        )
+    if not gru_rows.empty:
+        gru = gru_rows.iloc[0]
+        lines.append(
+            (
+                f"- GRU: PR-AUC `{_format_float(gru['pr_auc'])}`. "
+                "행동 순서를 직접 입력했지만 현재 학습 설정에서는 tabular 요약 feature보다 낮았다."
+            )
+        )
+
     baseline_rows = test_metrics.loc[
         ~test_metrics["model_name"].astype(str).eq("gru")
     ]
@@ -944,16 +1000,23 @@ def _build_final_plain_interpretation(test_metrics: pd.DataFrame) -> str:
         gru = gru_rows.iloc[0]
         baseline = baseline_rows.iloc[0]
         difference = float(gru["pr_auc"]) - float(baseline["pr_auc"])
+        lines.extend(["", "#### 핵심 비교"])
         if difference >= 0:
             lines.append(
-                f"- GRU: 최고 baseline보다 PR-AUC `{difference:.4f}` 높음 행동 순서 정보의 추가 이득 확인"
+                (
+                    f"- GRU는 최고 baseline보다 PR-AUC가 `{difference:.4f}` 높다. "
+                    "이 경우 행동 순서 정보가 tabular 요약 feature에 추가 이득을 준 것으로 해석할 수 있다."
+                )
             )
         else:
             lines.append(
-                f"- GRU: 최고 baseline보다 PR-AUC `{abs(difference):.4f}` 낮음 현재 결과에서는 가격, 시간, 탐색량 기반 LightGBM이 더 실용적"
+                (
+                    f"- GRU는 최고 baseline보다 PR-AUC가 `{abs(difference):.4f}` 낮다. "
+                    "현재 결과에서는 행동 순서 자체보다 가격, 시간, 탐색량, cart 이력 같은 요약 feature가 더 강한 신호였다."
+                )
             )
             lines.append(
-                "- 후속 개선: epoch, hidden size, sequence feature 표현 재튜닝. 이번 최종 선택 근거는 LightGBM 우위"
+                "- 결론: 이번 포트폴리오 범위의 최종 선택은 LightGBM이며, GRU는 epoch, hidden size, sequence 표현 튜닝을 후속 개선안으로 둔다."
             )
 
     return "\n".join(lines)
