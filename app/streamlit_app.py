@@ -100,7 +100,7 @@ def read_markdown(path: str) -> str | None:
 
 
 def render_missing_artifact(path: Path, command: str) -> None:
-    st.warning(f"`{_relative_path(path)}` artifact 없음.")
+    st.warning(f"`{_relative_path(path)}` artifact 없음")
     st.code(command, language="powershell")
 
 
@@ -374,7 +374,7 @@ def render_baseline_results() -> None:
 
     st.subheader("Test 성능 비교")
     if test_metrics.empty:
-        st.info("표시 가능한 test split baseline metric 없음.")
+        st.info("표시 가능한 test split baseline metric 없음")
     else:
         display_metrics = test_metrics.loc[:, list(BASELINE_METRIC_COLUMNS)].rename(
             columns=BASELINE_METRIC_COLUMNS
@@ -413,7 +413,7 @@ def render_baseline_results() -> None:
             top_n=15,
         )
         if top_features.empty:
-            st.info("표시 가능한 LightGBM feature importance 없음.")
+            st.info("표시 가능한 LightGBM feature importance 없음")
         else:
             if strategy is not None:
                 st.caption(f"validation PR-AUC 기준 선택 전략: `{strategy}`")
@@ -460,7 +460,7 @@ def render_gru_results() -> None:
     prepared_metrics = _prepare_gru_metrics(metrics)
     test_metrics = prepared_metrics.loc[prepared_metrics["split"].astype(str).eq("test")]
     if test_metrics.empty:
-        st.info("표시 가능한 GRU test metric 없음.")
+        st.info("표시 가능한 GRU test metric 없음")
     else:
         test_row = test_metrics.iloc[0]
         col1, col2, col3 = st.columns(3)
@@ -480,7 +480,7 @@ def render_gru_results() -> None:
     st.divider()
     st.subheader("Split별 GRU 성능")
     if prepared_metrics.empty:
-        st.info("표시 가능한 GRU metric 없음.")
+        st.info("표시 가능한 GRU metric 없음")
     else:
         display_columns = [
             column for column in GRU_METRIC_COLUMNS if column in prepared_metrics.columns
@@ -507,7 +507,7 @@ def render_gru_results() -> None:
             GRU_BUILD_COMMAND,
         )
     elif history.empty or "epoch" not in history.columns:
-        st.info("표시 가능한 GRU 학습 이력 없음.")
+        st.info("표시 가능한 GRU 학습 이력 없음")
     else:
         prepared_history = history.copy()
         prepared_history["epoch"] = pd.to_numeric(
@@ -566,7 +566,7 @@ def render_integrated_comparison() -> None:
 
     test_metrics = prepare_final_test_metrics(comparison)
     if test_metrics.empty:
-        st.info("표시 가능한 test split 최종 모델 비교 metric 없음.")
+        st.info("표시 가능한 test split 최종 모델 비교 metric 없음")
     else:
         best = test_metrics.iloc[0]
         col1, col2, col3 = st.columns(3)
@@ -594,17 +594,6 @@ def render_integrated_comparison() -> None:
     st.divider()
     st.subheader("Train/Validation/Test 전체 비교")
     st.dataframe(comparison, use_container_width=True, hide_index=True)
-
-    st.divider()
-    st.subheader("원문 해석 artifact")
-    if interpretation is None:
-        render_missing_artifact(
-            REPORTS_DIR / "model_interpretation_summary.md",
-            FINAL_REPORT_BUILD_COMMAND,
-        )
-    else:
-        with st.expander("model_interpretation_summary.md 원문 보기"):
-            st.markdown(interpretation)
 
 
 def render_reproducibility() -> None:
@@ -672,7 +661,7 @@ def _build_eda_plain_interpretation(
     value_column: str,
 ) -> str:
     if frame.empty or {index_column, value_column} - set(frame.columns):
-        return "- 해석: 표시 가능한 EDA 요약 없음."
+        return "- 해석: 표시 가능한 EDA 요약 없음"
 
     working = frame.copy()
     working[value_column] = pd.to_numeric(working[value_column], errors="coerce")
@@ -688,7 +677,7 @@ def _build_eda_plain_interpretation(
 
     working = working.dropna(subset=[value_column])
     if working.empty:
-        return "- 해석: 유효한 EDA rate 없음."
+        return "- 해석: 유효한 EDA rate 없음"
 
     highest = working.loc[working[value_column].idxmax()]
     lowest = working.loc[working[value_column].idxmin()]
@@ -697,13 +686,13 @@ def _build_eda_plain_interpretation(
     lines = [
         (
             f"- 최고 구간: `{highest[index_column]}` "
-            f"({_format_percent(highest[value_column])})."
+            f"({_format_percent(highest[value_column])})"
         ),
         (
             f"- 최저 구간: `{lowest[index_column]}` "
-            f"({_format_percent(lowest[value_column])})."
+            f"({_format_percent(lowest[value_column])})"
         ),
-        f"- 구간 차이: `{spread * 100:.2f}%p`.",
+        f"- 구간 차이: `{spread * 100:.2f}%p`",
     ]
 
     if count_column is not None and positive_column is not None:
@@ -715,7 +704,7 @@ def _build_eda_plain_interpretation(
         total_positive = working[positive_column].sum()
         if total_count > 0:
             lines.append(
-                f"- 전체 기준 rate: {_format_percent(total_positive / total_count)}."
+                f"- 전체 기준 rate: {_format_percent(total_positive / total_count)}"
             )
 
     lines.append(_eda_context_sentence(index_column, str(highest[index_column])))
@@ -731,16 +720,16 @@ def _first_existing_column(frame: pd.DataFrame, candidates: list[str]) -> str | 
 
 def _eda_context_sentence(index_column: str, highest_label: str) -> str:
     if index_column == "session_length_band":
-        return "- 의미: 세션 길이에 따라 구매율이 달라져 탐색 깊이가 구매 예측 feature로 유효."
+        return "- 의미: 세션 길이에 따라 구매율이 달라져 탐색 깊이가 구매 예측 feature로 유효"
     if index_column == "sequence_pattern":
         if "cart" in highest_label:
-            return "- 의미: `cart` 포함 행동 패턴이 강한 구매 의도 신호."
-        return "- 의미: 초기 행동 순서만으로도 구매율 차이 발생."
+            return "- 의미: `cart` 포함 행동 패턴이 강한 구매 의도 신호"
+        return "- 의미: 초기 행동 순서만으로도 구매율 차이 발생"
     if index_column == "price_band":
-        return "- 의미: 가격대별 positive 비율 차이 확인. 가격 feature의 보조 설명력 근거."
+        return "- 의미: 가격대별 positive 비율 차이 확인. 가격 feature의 보조 설명력 근거"
     if index_column == "hour":
-        return "- 의미: 시간대별 positive 비율 변동 확인. hour feature 사용 근거."
-    return "- 의미: 구간별 rate 차이를 통해 feature 후보의 설명력 확인."
+        return "- 의미: 시간대별 positive 비율 변동 확인. hour feature 사용 근거"
+    return "- 의미: 구간별 rate 차이를 통해 feature 후보의 설명력 확인"
 
 
 def _prepare_gru_metrics(metrics: pd.DataFrame) -> pd.DataFrame:
@@ -856,17 +845,17 @@ def _build_gru_plain_interpretation(
 ) -> str:
     return "\n".join(
         [
-            "- GRU: `view -> cart -> view`처럼 기준 시점까지의 행동 순서를 직접 읽는 sequence model.",
-            f"- Test PR-AUC `{_format_float(pr_auc)}`: 구매 sample이 적은 조건에서 구매 가능성이 큰 sample을 앞순위에 배치하는 힘.",
-            f"- Test ROC-AUC `{_format_float(roc_auc)}`: 구매/비구매를 전반적으로 구분하는 힘.",
-            f"- 상위 10% 후보 기준: 실제 구매자의 `{_format_float(recall_at_k)}` 포착, 후보 내부 구매 비율 `{_format_float(precision_at_k)}`.",
+            "- GRU: `view -> cart -> view`처럼 기준 시점까지의 행동 순서를 직접 읽는 sequence model",
+            f"- Test PR-AUC `{_format_float(pr_auc)}`: 구매 sample이 적은 조건에서 구매 가능성이 큰 sample을 앞순위에 배치하는 힘",
+            f"- Test ROC-AUC `{_format_float(roc_auc)}`: 구매/비구매를 전반적으로 구분하는 힘",
+            f"- 상위 10% 후보 기준: 실제 구매자의 `{_format_float(recall_at_k)}` 포착, 후보 내부 구매 비율 `{_format_float(precision_at_k)}`",
         ]
     )
 
 
 def _build_gru_training_interpretation(history: pd.DataFrame) -> str:
     if history.empty or "epoch" not in history.columns:
-        return "- Epoch 해석: 표시 가능한 학습 이력 없음."
+        return "- Epoch 해석: 표시 가능한 학습 이력 없음"
 
     prepared = history.copy()
     prepared["epoch"] = pd.to_numeric(prepared["epoch"], errors="coerce")
@@ -880,12 +869,12 @@ def _build_gru_training_interpretation(history: pd.DataFrame) -> str:
 
     valid_epochs = prepared.dropna(subset=["epoch"])
     if valid_epochs.empty:
-        return "- Epoch 해석: epoch 값 확인 불가."
+        return "- Epoch 해석: epoch 값 확인 불가"
 
     epoch_count = int(valid_epochs["epoch"].nunique())
     lines = [
-        f"- Epoch `{epoch_count}` 설정: 최종 하이퍼파라미터 탐색이 아니라 baseline 대비 sequence 입력 효용을 확인하는 1차 비교용 설정.",
-        "- 전체 sequence artifact 기반 학습 비용이 크므로, 짧은 epoch로 먼저 validation 경향과 과적합 신호 확인.",
+        f"- Epoch `{epoch_count}` 설정: 최종 하이퍼파라미터 탐색이 아니라 baseline 대비 sequence 입력 효용을 확인하는 1차 비교용 설정",
+        "- 전체 sequence artifact 기반 학습 비용이 크므로, 짧은 epoch로 먼저 validation 경향과 과적합 신호 확인",
     ]
 
     valid_pr_auc = valid_epochs.dropna(subset=["validation_pr_auc"])
@@ -894,19 +883,19 @@ def _build_gru_training_interpretation(history: pd.DataFrame) -> str:
         first_row = valid_pr_auc.sort_values("epoch", kind="mergesort").iloc[0]
         last_row = valid_pr_auc.sort_values("epoch", kind="mergesort").iloc[-1]
         lines.append(
-            f"- Validation PR-AUC 최고점: epoch `{int(best_row['epoch'])}`, `{_format_float(best_row['validation_pr_auc'])}`."
+            f"- Validation PR-AUC 최고점: epoch `{int(best_row['epoch'])}`, `{_format_float(best_row['validation_pr_auc'])}`"
         )
         if float(last_row["validation_pr_auc"]) < float(best_row["validation_pr_auc"]):
             lines.append(
-                f"- 학습 경향: 마지막 epoch PR-AUC `{_format_float(last_row['validation_pr_auc'])}`로 최고점 대비 하락. 단순 epoch 증가보다 과적합 제어와 sequence 표현 튜닝 우선."
+                f"- 학습 경향: 마지막 epoch PR-AUC `{_format_float(last_row['validation_pr_auc'])}`로 최고점 대비 하락. 단순 epoch 증가보다 과적합 제어와 sequence 표현 튜닝 우선"
             )
         elif float(last_row["validation_pr_auc"]) > float(first_row["validation_pr_auc"]):
             lines.append(
-                "- 학습 경향: validation PR-AUC 상승세. 추가 epoch 또는 early stopping 기반 재학습 검토 여지."
+                "- 학습 경향: validation PR-AUC 상승세. 추가 epoch 또는 early stopping 기반 재학습 검토 여지"
             )
         else:
             lines.append(
-                "- 학습 경향: validation PR-AUC 정체. epoch 증가만으로 큰 개선을 기대하기 어려운 상태."
+                "- 학습 경향: validation PR-AUC 정체. epoch 증가만으로 큰 개선을 기대하기 어려운 상태"
             )
 
     valid_loss = valid_epochs.dropna(subset=["train_loss"])
@@ -916,7 +905,7 @@ def _build_gru_training_interpretation(history: pd.DataFrame) -> str:
         last_loss = ordered_loss.iloc[-1]["train_loss"]
         if float(last_loss) < float(first_loss):
             lines.append(
-                f"- Train loss: `{_format_float(first_loss)}`에서 `{_format_float(last_loss)}`로 감소. 학습은 진행됐지만 validation 성능은 별도 판단 필요."
+                f"- Train loss: `{_format_float(first_loss)}`에서 `{_format_float(last_loss)}`로 감소. 학습은 진행됐지만 validation 성능은 별도 판단 필요"
             )
 
     return "\n".join(lines)
@@ -924,12 +913,12 @@ def _build_gru_training_interpretation(history: pd.DataFrame) -> str:
 
 def _build_final_plain_interpretation(test_metrics: pd.DataFrame) -> str:
     if test_metrics.empty:
-        return "표시 가능한 test split 최종 비교 metric 없음."
+        return "표시 가능한 test split 최종 비교 metric 없음"
 
     best = test_metrics.iloc[0]
     lines = [
-        f"- 최종 비교: `{best['model_display']}`가 test PR-AUC `{_format_float(best['pr_auc'])}`로 최고.",
-        "- 의미: 실제 구매 가능성이 큰 sample을 더 앞순위에 배치.",
+        f"- 최종 비교: `{best['model_display']}`가 test PR-AUC `{_format_float(best['pr_auc'])}`로 최고",
+        "- 의미: 실제 구매 가능성이 큰 sample을 더 앞순위에 배치",
     ]
 
     contract_status = (
@@ -942,11 +931,11 @@ def _build_final_plain_interpretation(test_metrics: pd.DataFrame) -> str:
     if contract_status:
         if contract_status == ["matched_by_split_counts"]:
             lines.append(
-                "- 비교 조건: 세 모델의 test sample 수와 positive 수 일치. 입력 표현 차이 비교 가능."
+                "- 비교 조건: 세 모델의 test sample 수와 positive 수 일치. 입력 표현 차이 비교 가능"
             )
         else:
             lines.append(
-                "- 비교 조건 주의: sample 점검 결과 불일치. 최종 결론 전 비교 조건 확인 필요."
+                "- 비교 조건 주의: sample 점검 결과 불일치. 최종 결론 전 비교 조건 확인 필요"
             )
 
     gru_rows = test_metrics.loc[test_metrics["model_name"].astype(str).eq("gru")]
@@ -959,14 +948,14 @@ def _build_final_plain_interpretation(test_metrics: pd.DataFrame) -> str:
         difference = float(gru["pr_auc"]) - float(baseline["pr_auc"])
         if difference >= 0:
             lines.append(
-                f"- GRU: 최고 baseline보다 PR-AUC `{difference:.4f}` 높음. 행동 순서 정보의 추가 이득 확인."
+                f"- GRU: 최고 baseline보다 PR-AUC `{difference:.4f}` 높음 행동 순서 정보의 추가 이득 확인"
             )
         else:
             lines.append(
-                f"- GRU: 최고 baseline보다 PR-AUC `{abs(difference):.4f}` 낮음. 현재 결과에서는 가격, 시간, 탐색량 기반 LightGBM이 더 실용적."
+                f"- GRU: 최고 baseline보다 PR-AUC `{abs(difference):.4f}` 낮음 현재 결과에서는 가격, 시간, 탐색량 기반 LightGBM이 더 실용적"
             )
             lines.append(
-                "- 후속 개선: epoch, hidden size, sequence feature 표현 재튜닝. 이번 최종 선택 근거는 LightGBM 우위."
+                "- 후속 개선: epoch, hidden size, sequence feature 표현 재튜닝. 이번 최종 선택 근거는 LightGBM 우위"
             )
 
     return "\n".join(lines)
