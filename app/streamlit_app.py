@@ -153,7 +153,8 @@ def render_overview() -> None:
     st.markdown(
         """
         - 데이터셋 출처 : Kaggle `eCommerce behavior data from multi category store`
-        - 사용 데이터 : `2019-Oct.csv`에서 2019-10-10까지
+        - 분석 데이터 : `2019-Oct.csv` 전체
+        - 학습 데이터 : `2019-Oct.csv`의 2019-10-05까지
         """
     )
 
