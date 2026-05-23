@@ -165,37 +165,16 @@ def build_event_type_vocabulary(
 ) -> EventTypeVocabulary:
     """train split의 event type sequence만 사용해 vocabulary를 fit한다."""
 
-    return build_sequence_vocabularies(
-        sample_index,
-        sequence_features,
-        policy=policy,
-    )["event_type_sequence"]
-
-
-def build_sequence_vocabularies(
-    sample_index: pd.DataFrame,
-    sequence_features: pd.DataFrame,
-    policy: SequenceDatasetPolicy | None = None,
-) -> dict[str, EventTypeVocabulary]:
-    """train split의 categorical sequence만 사용해 feature별 vocabulary를 fit한다."""
-
     active_policy = policy or SequenceDatasetPolicy()
     _validate_policy(active_policy)
     joined = _join_sequence_inputs(sample_index, sequence_features)
-    return _build_sequence_vocabularies_from_joined(joined, active_policy)
-
-
-def fit_time_gap_scaler(
-    sample_index: pd.DataFrame,
-    sequence_features: pd.DataFrame,
-    policy: SequenceDatasetPolicy | None = None,
-) -> TimeGapScaler:
-    """train split의 time gap sequence만 사용해 log1p 표준화 scaler를 fit한다."""
-
-    active_policy = policy or SequenceDatasetPolicy()
-    _validate_policy(active_policy)
-    joined = _join_sequence_inputs(sample_index, sequence_features)
-    return _fit_time_gap_scaler_from_joined(joined, active_policy)
+    train = joined.loc[joined["split"].astype(str).eq(active_policy.fit_split)]
+    token_counts: Counter[str] = Counter()
+    for sequence in train["event_type_sequence"]:
+        token_counts.update(
+            _parse_sequence(sequence)[-active_policy.max_sequence_length:]
+        )
+    return _build_vocabulary_from_counts(token_counts, "event_type_sequence")
 
 
 def build_gru_event_type_dataset(
@@ -595,34 +574,6 @@ def _limit_sample_index(
     return pd.concat(parts, ignore_index=True)
 
 
-def _encode_and_pad(
-    value: object,
-    vocabulary: EventTypeVocabulary,
-    max_sequence_length: int,
-) -> tuple[list[int], int]:
-    tokens = _parse_sequence(value)[-max_sequence_length:]
-    encoded = vocabulary.encode(tokens)
-    length = len(encoded)
-    padded = encoded + [vocabulary.pad_id] * (max_sequence_length - length)
-    return padded, length
-
-
-def _build_sequence_vocabularies_from_joined(
-    joined: pd.DataFrame,
-    policy: SequenceDatasetPolicy,
-) -> dict[str, EventTypeVocabulary]:
-    train = joined.loc[joined["split"].astype(str).eq(policy.fit_split)]
-    return {
-        column: _build_vocabulary_for_column(
-            train[column],
-            column,
-            max_sequence_length=policy.max_sequence_length,
-            top_k=_vocabulary_top_k_for_column(column, policy),
-        )
-        for column in SEQUENCE_CATEGORICAL_COLUMNS
-    }
-
-
 def _fit_sequence_transforms_from_joined(
     joined: pd.DataFrame,
     policy: SequenceDatasetPolicy,
@@ -658,20 +609,6 @@ def _fit_sequence_transforms_from_joined(
     }
     scaler = _build_time_gap_scaler(time_gap_values)
     return vocabularies, scaler
-
-
-def _fit_time_gap_scaler_from_joined(
-    joined: pd.DataFrame,
-    policy: SequenceDatasetPolicy,
-) -> TimeGapScaler:
-    train = joined.loc[joined["split"].astype(str).eq(policy.fit_split)]
-    values: list[float] = []
-    for sequence in train["time_gap_minutes_sequence"]:
-        values.extend(
-            np.log1p(_parse_non_negative_float(token))
-            for token in _parse_sequence(sequence)[-policy.max_sequence_length:]
-        )
-    return _build_time_gap_scaler(values)
 
 
 def _build_time_gap_scaler(values: list[float]) -> TimeGapScaler:
@@ -727,20 +664,6 @@ def _encode_joined_sequences(
     return categorical_token_ids, time_gap_values, lengths
 
 
-def _encode_time_gap_sequence(
-    value: object,
-    scaler: TimeGapScaler,
-    max_sequence_length: int,
-) -> list[float]:
-    tokens = _parse_sequence(value)[-max_sequence_length:]
-    transformed = scaler.transform(tokens)
-    return transformed + [0.0] * (max_sequence_length - len(transformed))
-
-
-def _sequence_length(value: object, max_sequence_length: int) -> int:
-    return min(len(_parse_sequence(value)), max_sequence_length)
-
-
 def _parse_sequence(value: object) -> list[str]:
     if value is None or pd.isna(value):
         return []
@@ -756,22 +679,6 @@ def _parse_non_negative_float(value: object) -> float:
     if pd.isna(numeric):
         return 0.0
     return max(float(numeric), 0.0)
-
-
-def _build_vocabulary_for_column(
-    values: pd.Series,
-    column: str,
-    max_sequence_length: int | None = None,
-    top_k: int | None = None,
-) -> EventTypeVocabulary:
-    token_counts: Counter[str] = Counter()
-    for value in values:
-        tokens = _parse_sequence(value)
-        if max_sequence_length is not None:
-            tokens = tokens[-max_sequence_length:]
-        token_counts.update(tokens)
-
-    return _build_vocabulary_from_counts(token_counts, column, top_k=top_k)
 
 
 def _build_vocabulary_from_counts(
