@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
-.pytest_tmp/
+.pytest_tmp*/
 .mypy_cache/
 .ruff_cache/
 
@@ -43,6 +43,7 @@ Agents.md
 docs/*
 !docs/ARCHITECTURE.md
 !docs/FEATURE_ARTIFACT_REFERENCE.md
+!docs/PORTFOLIO_EXECUTION_PLAN.md
 !docs/PROJECT_DESIGN.md
 !docs/TECHSPEC.md
 *.ipynb_checkpoints/

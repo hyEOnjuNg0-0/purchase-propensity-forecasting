@@ -52,6 +52,7 @@
 | 항목 | 값 |
 | --- | --- |
 | 대시보드 엔트리 | `app/streamlit_app.py` |
+| Docker 의존성 파일 | `requirements-dashboard.txt` |
 | 기본 포트 | 8501 |
 | Docker Base image | `python:3.10-slim` |
 | Docker 실행 대상 | Streamlit 대시보드 |

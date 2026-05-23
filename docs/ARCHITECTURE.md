@@ -7,6 +7,7 @@ C:\PurchasePropensityForecasting
 |-- Agents.md
 |-- Dockerfile
 |-- pytest.ini
+|-- requirements-dashboard.txt
 |-- requirements.txt
 |-- app
 |   `-- streamlit_app.py
@@ -106,15 +107,15 @@ C:\PurchasePropensityForecasting
 - `src/purchase_time_forecasting/feature_engineering.py`: Step 5 Feature Engineering 핵심 로직이다. 기준 시점까지의 prefix 기반 tabular/sequence feature, 사용자 과거 행동 집계 feature, 시간 기반 train/validation/test split, 공통 `sample_id`, train split 기준 transformer fit 범위 artifact를 생성한다.
 - `scripts/build_features.py`: `ptf` 환경 래퍼로 실행하는 Step 5 CLI 진입점이다. `--max-rows`를 생략하면 전체 원천 CSV를 streaming 방식으로 처리하고, 값을 지정하면 빠른 검증용 부분 feature artifact를 생성한다. `--until-date`로 특정 날짜 또는 시각까지의 이벤트만 포함할 수 있고, `--max-sequence-length`로 sequence artifact의 prefix 길이를 제한할 수 있다.
 - `tests/test_feature_engineering.py`: feature prefix 누수 방지, raw ID/model input 분리, train split 기준 encoder/scaler fit 범위, 공통 sample 계약, tabular/sequence artifact 저장 계약을 검증하는 pytest 테스트다.
-- `pytest.ini`: pytest 임시 파일을 저장소 내부 `.pytest_tmp`에 생성하도록 고정한다.
+- `pytest.ini`: pytest 임시 파일을 저장소 내부 `.pytest_tmp_current`에 생성하도록 고정하고 cache provider를 비활성화한다. 기존 `.pytest_tmp` 및 `.pytest_cache` 접근 권한 문제와 무관하게 `.\scripts\run_ptf.ps1 python -m pytest` 명령이 동작하도록 분리한다.
 - `artifacts/features`: Step 5 feature dataset 생성물 디렉터리다. `sample_index.csv`, `tabular_feature_dataset.csv`, `sequence_feature_dataset.parquet`로 모델 공통 sample index와 입력 feature를 분리한다. 대용량 산출물이므로 현재 `.gitignore` 정책상 추적 대상은 아니며 로컬 재생성 대상으로 둔다.
 - `artifacts/reports`: Step 1/2/3/4/5 실행 결과를 저장하는 리포트 artifact 디렉터리다.
 - `docs/FEATURE_ARTIFACT_REFERENCE.md`: `tabular_feature_dataset.csv`와 `sequence_feature_dataset.parquet`의 모델 입력 컬럼 이름과 의미를 정리한 문서다.
 - `src/purchase_time_forecasting/baseline_modeling.py`: Step 7 baseline 모델링 핵심 로직이다. `sample_id` 기준으로 `sample_index.csv`와 `tabular_feature_dataset.csv`를 연결하고, train split 기준 전처리, Logistic Regression 학습, LightGBM 선택 학습, PR-AUC/ROC-AUC/F1/Recall@K/Precision@K 평가, feature importance artifact 생성을 수행한다.
 - `scripts/train_baselines.py`: `ptf` 환경 래퍼로 실행하는 Step 7 CLI 진입점이다. 대용량 artifact 검증을 위해 split별 실제 sample 상한 옵션을 제공하며, 기본 산출물은 `artifacts/reports/model_metrics.csv`, `baseline_feature_importance.csv`, `baseline_model_status.csv`, `baseline_report.md`다.
 - `tests/test_baseline_modeling.py`: baseline dataset join, train split 기준 전처리, metric 계산, Logistic Regression class imbalance 비교, baseline artifact 저장 계약을 검증하는 pytest 테스트다.
-- `src/purchase_time_forecasting/streamlit_report.py`: Step 8/10 Streamlit 보고서 표시용 artifact 정리 로직이다. baseline artifact 존재 여부, 누락 artifact 생성 명령, test split metric 표, 최적 baseline 요약, LightGBM feature importance 상위 항목, Logistic Regression/LightGBM/GRU 최종 비교표와 간단한 해석 요약을 계산한다.
-- `app/streamlit_app.py`: Step 8/10 Streamlit 보고서 초안이다. 사이드바 목차로 Overview, Data Quality, Labeling, EDA, Features, Baseline Results, GRU Results, Integrated Comparison, Reproducibility 섹션을 선택해 볼 수 있으며, 각 섹션은 실제 artifact 기반으로 표시하고 artifact가 없을 때 모의 데이터 대신 생성 명령을 안내한다. EDA는 각 탭의 최고/최저 rate와 간단한 의미를 표 아래에 요약한다. GRU Results는 GRU 단독 성능, 학습 추이, epoch 3 설정 근거를 표시하고, Integrated Comparison은 Logistic Regression, LightGBM, GRU의 최종 비교와 간결한 보고용 해석을 표시한다.
+- `src/purchase_time_forecasting/streamlit_report.py`: Step 8/10/12 Streamlit 보고서 표시용 artifact 정리 로직이다. baseline artifact 존재 여부, 누락 artifact 생성 명령, test split metric 표, 최적 baseline 요약, LightGBM feature importance 상위 항목, Logistic Regression/LightGBM/GRU 최종 비교표, Step 12 재현성 실행 순서와 후속 개선안 목록을 계산한다.
+- `app/streamlit_app.py`: Step 8/10/11/12 Streamlit 보고서다. 사이드바 목차로 Overview, Data Quality, Labeling, EDA, Features, Baseline Results, GRU Results, Integrated Comparison, Limitations, Reproducibility 섹션을 선택해 볼 수 있으며, 각 섹션은 실제 artifact 기반으로 표시하고 artifact가 없을 때 모의 데이터 대신 생성 명령을 안내한다. EDA는 각 탭의 최고/최저 rate와 간단한 의미를 표 아래에 요약한다. GRU Results는 GRU 단독 성능, 학습 추이, epoch 3 설정 근거를 표시하고, Integrated Comparison은 Logistic Regression, LightGBM, GRU의 최종 비교와 간결한 보고용 해석을 표시한다. Limitations는 SASRec, TiSASRec, SHAP, attention/embedding 분석을 후속 개선안으로 분리하고, Reproducibility는 artifact 생성, pytest, 로컬 Streamlit, Docker 실행 명령을 표시한다.
 - `tests/test_streamlit_report.py`: Step 8 Streamlit 표시 로직의 artifact 상태, baseline test metric 정리, 최적 전략 선택, LightGBM feature importance 필터링을 검증하는 pytest 테스트다.
 - `src/purchase_time_forecasting/sequence_modeling.py`: Step 9 GRU sequence 모델 학습 유스케이스다. `sequence_feature_dataset.parquet`와 `sample_index.csv`를 `sample_id` 기준으로 연결하고, train split 기준 categorical sequence vocabulary, time gap log1p 표준화 scaler, 정수 token ID, numeric time gap 배열, padding, sequence length, label/split 배열을 생성한 뒤 PyTorch GRU classifier를 학습/평가한다. 입력 feature는 `event_type_sequence`, `product_id_sequence`, `category_id_sequence`, `price_bin_sequence`, `time_gap_minutes_sequence` 전체를 사용한다. 학습 중 `progress_callback`으로 epoch별 loss와 validation PR-AUC 로그를 확인할 수 있다.
 - `scripts/train_gru.py`: `ptf` 환경 래퍼로 실행하는 Step 9 CLI 진입점이다. sequence feature artifact 전체를 사용하는 GRU 모델을 학습하고 `artifacts/reports/gru_model_metrics.csv`, `gru_model_status.csv`, `gru_training_history.csv`, `gru_report.md`를 저장한다.
@@ -122,3 +123,6 @@ C:\PurchasePropensityForecasting
 - `scripts/build_final_report.py`: Step 10 최종 모델 비교 CLI 진입점이다. `model_metrics.csv`, `gru_model_metrics.csv`, `baseline_feature_importance.csv`를 읽어 validation PR-AUC 기준 대표 전략을 선택하고 `final_model_comparison.csv`, `model_interpretation_summary.md`를 생성한다.
 - `artifacts/reports/final_model_comparison.csv`: Logistic Regression, LightGBM, GRU의 train/validation/test metric을 동일 schema로 통합한 Step 10 비교 artifact다.
 - `artifacts/reports/model_interpretation_summary.md`: 최종 test PR-AUC 비교, sample count 기준 동일 비교 점검, LightGBM 주요 feature의 구매 행동 관점 해석, GRU와 baseline 차이에 대한 간단한 원인 가설을 담은 Step 10 markdown artifact다.
+- `requirements-dashboard.txt`: Step 12 Docker 이미지에서 Streamlit 보고서 실행에 필요한 최소 의존성 목록이다. 학습용 `torch`, `lightgbm`, `scikit-learn`은 컨테이너에 설치하지 않는다.
+- `Dockerfile`: Step 12 Streamlit 보고서 실행용 컨테이너 정의다. `python:3.10-slim`을 사용하고 `app`, `src`, `docs`, `artifacts/reports`만 복사해 대용량 원천 데이터와 feature artifact 없이 결과 보고서를 실행한다.
+- `.dockerignore`: Docker build context에서 `data/`와 `artifacts/features/`를 제외하고, 보고서 표시용 `artifacts/reports/`는 포함한다.

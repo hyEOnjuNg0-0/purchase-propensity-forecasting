@@ -17,6 +17,8 @@ from purchase_time_forecasting.streamlit_report import (  # noqa: E402
     BASELINE_BUILD_COMMAND,
     FINAL_REPORT_BUILD_COMMAND,
     best_metric_summary,
+    build_reproducibility_commands,
+    build_step12_follow_up_items,
     prepare_baseline_test_metrics,
     prepare_final_test_metrics,
     select_best_strategy,
@@ -115,7 +117,8 @@ def render_navigation() -> str:
         "6. Baseline Results",
         "7. GRU Results",
         "8. Integrated Comparison",
-        "9. Reproducibility",
+        "9. Limitations",
+        "10. Reproducibility",
     ]
     selected = st.sidebar.radio(
         "Report Sections",
@@ -599,24 +602,39 @@ def render_integrated_comparison() -> None:
 def render_reproducibility() -> None:
     render_section_title(
         "Reproducibility",
-        "분석 artifact와 Streamlit 보고서 재생성 순서.",
+        "분석 artifact, 테스트, Streamlit, Docker 실행 순서.",
     )
-    st.code(
-        "\n".join(
-            [
-                ".\\scripts\\run_ptf.ps1 python scripts\\profile_data.py",
-                ".\\scripts\\run_ptf.ps1 python scripts\\validate_data_quality.py",
-                ".\\scripts\\run_ptf.ps1 python scripts\\create_labels.py",
-                ".\\scripts\\run_ptf.ps1 python scripts\\run_eda.py",
-                ".\\scripts\\run_ptf.ps1 python scripts\\build_features.py",
-                ".\\scripts\\run_ptf.ps1 python scripts\\train_baselines.py",
-                ".\\scripts\\run_ptf.ps1 python scripts\\train_gru.py",
-                ".\\scripts\\run_ptf.ps1 python scripts\\build_final_report.py",
-                ".\\scripts\\run_ptf.ps1 streamlit run app/streamlit_app.py",
-            ]
-        ),
-        language="powershell",
+    st.subheader("전체 실행 순서")
+    st.code("\n".join(build_reproducibility_commands()), language="powershell")
+
+    st.divider()
+    st.subheader("Docker 실행")
+    st.markdown(
+        """
+        Docker 이미지는 학습용 컨테이너가 아니라 Streamlit 결과 보고서 확인용이다.
+        원천 데이터와 대용량 feature artifact는 이미지에 포함하지 않고,
+        보고서 표시용 `artifacts/reports`와 앱 코드를 포함한다.
+        """
     )
+
+
+def render_limitations() -> None:
+    render_section_title(
+        "Limitations",
+        "이번 마감 범위와 후속 개선안을 분리해 해석 범위를 명확히 표시",
+    )
+    st.subheader("현재 범위")
+    st.markdown(
+        """
+        - 분석 대상은 `2019-Oct.csv` 단일 월이며, 운영 서비스나 실시간 inference는 포함하지 않는다.
+        - 최종 비교는 Logistic Regression, LightGBM, GRU를 동일 split과 metric으로 비교하는 데 집중한다.
+        - GRU가 baseline보다 낮거나 비슷하더라도 sequence 입력 실험 결과와 한계를 함께 제시한다.
+        """
+    )
+
+    st.divider()
+    st.subheader("후속 개선안")
+    st.markdown("\n".join(f"- {item}" for item in build_step12_follow_up_items()))
 
 
 def _relative_path(path: Path) -> str:
@@ -1012,7 +1030,8 @@ def main() -> None:
         "6. Baseline Results": render_baseline_results,
         "7. GRU Results": render_gru_results,
         "8. Integrated Comparison": render_integrated_comparison,
-        "9. Reproducibility": render_reproducibility,
+        "9. Limitations": render_limitations,
+        "10. Reproducibility": render_reproducibility,
     }
     renderers[selected_section]()
 

@@ -13,10 +13,14 @@ import pandas as pd  # noqa: E402
 
 from purchase_time_forecasting.streamlit_report import (  # noqa: E402
     BASELINE_BUILD_COMMAND,
+    DOCKER_BUILD_COMMAND,
+    DOCKER_RUN_COMMAND,
     ArtifactRequirement,
     best_metric_summary,
     build_final_model_comparison,
     build_model_interpretation_summary,
+    build_reproducibility_commands,
+    build_step12_follow_up_items,
     build_artifact_status,
     final_report_artifact_requirements,
     missing_artifact_commands,
@@ -324,3 +328,25 @@ def test_prepare_training_feature_dictionary_keeps_feature_name_and_description(
         "기준 시점까지 관측된 세션 내 이벤트 개수",
         "기준 시점까지의 최근 행동 유형 sequence",
     ]
+
+
+def test_build_reproducibility_commands_includes_step12_checks_and_docker() -> None:
+    commands = build_reproducibility_commands()
+
+    assert commands[-4:] == [
+        ".\\scripts\\run_ptf.ps1 python -m pytest",
+        ".\\scripts\\run_ptf.ps1 streamlit run app/streamlit_app.py",
+        DOCKER_BUILD_COMMAND,
+        DOCKER_RUN_COMMAND,
+    ]
+    assert commands[0] == ".\\scripts\\run_ptf.ps1 python scripts\\profile_data.py"
+    assert ".\\scripts\\run_ptf.ps1 python scripts\\build_final_report.py" in commands
+
+
+def test_build_step12_follow_up_items_limits_out_of_scope_work() -> None:
+    items = build_step12_follow_up_items()
+
+    assert any("SASRec" in item for item in items)
+    assert any("TiSASRec" in item for item in items)
+    assert any("SHAP" in item for item in items)
+    assert any("attention" in item for item in items)

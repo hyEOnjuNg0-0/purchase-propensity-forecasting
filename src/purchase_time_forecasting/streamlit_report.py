@@ -15,6 +15,12 @@ BASELINE_BUILD_COMMAND = (
 FINAL_REPORT_BUILD_COMMAND = (
     ".\\scripts\\run_ptf.ps1 python scripts\\build_final_report.py"
 )
+PYTEST_COMMAND = ".\\scripts\\run_ptf.ps1 python -m pytest"
+STREAMLIT_RUN_COMMAND = ".\\scripts\\run_ptf.ps1 streamlit run app/streamlit_app.py"
+DOCKER_BUILD_COMMAND = "docker build -t purchase-propensity-report ."
+DOCKER_RUN_COMMAND = (
+    "docker run --rm -p 8501:8501 purchase-propensity-report"
+)
 FEATURE_DESCRIPTIONS = {
     "prefix_length": "기준 시점까지 관측된 세션 내 이벤트 개수",
     "last_event_type": "기준 시점의 마지막 사용자 행동 유형",
@@ -104,6 +110,36 @@ def final_report_artifact_requirements(reports_dir: Path) -> tuple[ArtifactRequi
             build_command=FINAL_REPORT_BUILD_COMMAND,
         ),
     )
+
+
+def build_reproducibility_commands() -> list[str]:
+    """Step 12 마감 점검용 전체 실행 순서를 반환한다."""
+
+    return [
+        ".\\scripts\\run_ptf.ps1 python scripts\\profile_data.py",
+        ".\\scripts\\run_ptf.ps1 python scripts\\validate_data_quality.py",
+        ".\\scripts\\run_ptf.ps1 python scripts\\create_labels.py",
+        ".\\scripts\\run_ptf.ps1 python scripts\\run_eda.py",
+        ".\\scripts\\run_ptf.ps1 python scripts\\build_features.py",
+        BASELINE_BUILD_COMMAND,
+        ".\\scripts\\run_ptf.ps1 python scripts\\train_gru.py",
+        FINAL_REPORT_BUILD_COMMAND,
+        PYTEST_COMMAND,
+        STREAMLIT_RUN_COMMAND,
+        DOCKER_BUILD_COMMAND,
+        DOCKER_RUN_COMMAND,
+    ]
+
+
+def build_step12_follow_up_items() -> list[str]:
+    """마감 범위 밖의 고비용 개선 항목을 보고서 표시용으로 반환한다."""
+
+    return [
+        "SASRec: GRU 이후 self-attention 기반 sequence model로 확장한다.",
+        "TiSASRec: 이벤트 간 시간 간격을 attention 구조에 직접 반영하는 고도화 후보로 둔다.",
+        "SHAP: LightGBM feature importance를 보완하는 국소 설명 분석으로 추가 검토한다.",
+        "attention/embedding 분석: sequence 표현을 행동 패턴 관점에서 해석하는 후속 분석으로 분리한다.",
+    ]
 
 
 def build_artifact_status(
