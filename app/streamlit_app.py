@@ -17,7 +17,6 @@ from purchase_time_forecasting.streamlit_report import (  # noqa: E402
     BASELINE_BUILD_COMMAND,
     FINAL_REPORT_BUILD_COMMAND,
     best_metric_summary,
-    build_reproducibility_commands,
     build_step12_follow_up_items,
     prepare_baseline_test_metrics,
     prepare_final_test_metrics,
@@ -118,7 +117,6 @@ def render_navigation() -> str:
         "7. GRU Results",
         "8. Integrated Comparison",
         "9. Limitations",
-        "10. Reproducibility",
     ]
     selected = st.sidebar.radio(
         "Report Sections",
@@ -599,25 +597,6 @@ def render_integrated_comparison() -> None:
     st.dataframe(comparison, use_container_width=True, hide_index=True)
 
 
-def render_reproducibility() -> None:
-    render_section_title(
-        "Reproducibility",
-        "분석 artifact, 테스트, Streamlit, Docker 실행 순서.",
-    )
-    st.subheader("전체 실행 순서")
-    st.code("\n".join(build_reproducibility_commands()), language="powershell")
-
-    st.divider()
-    st.subheader("Docker 실행")
-    st.markdown(
-        """
-        Docker 이미지는 학습용 컨테이너가 아니라 Streamlit 결과 보고서 확인용이다.
-        원천 데이터와 대용량 feature artifact는 이미지에 포함하지 않고,
-        보고서 표시용 `artifacts/reports`와 앱 코드를 포함한다.
-        """
-    )
-
-
 def render_limitations() -> None:
     render_section_title(
         "Limitations",
@@ -1031,7 +1010,6 @@ def main() -> None:
         "7. GRU Results": render_gru_results,
         "8. Integrated Comparison": render_integrated_comparison,
         "9. Limitations": render_limitations,
-        "10. Reproducibility": render_reproducibility,
     }
     renderers[selected_section]()
 

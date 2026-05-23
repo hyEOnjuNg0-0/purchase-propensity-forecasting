@@ -306,7 +306,6 @@
 - Model Results: Logistic Regression, LightGBM, GRU 성능 비교표와 chart 표시
 - Interpretation: feature importance와 모델 비교 결론 표시
 - Limitations: 데이터 한계, 모델 한계, 후속 개선안 표시
-- Reproducibility: artifact 생성 명령과 Streamlit 실행 명령 표시
 
 산출물:
 
@@ -359,7 +358,6 @@
 6. Model Results: Logistic Regression, LightGBM, GRU 성능 비교
 7. Interpretation: feature importance와 baseline 대비 GRU 결과 해석
 8. Limitations: 데이터 한계, 성능 한계, 후속 개선안
-9. Reproducibility: artifact 생성 명령, Docker/Streamlit 실행 방법
 
 ## 8. 남은 열린 질문
 
