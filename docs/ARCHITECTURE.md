@@ -7,6 +7,7 @@ C:\PurchasePropensityForecasting
 |-- Agents.md
 |-- Dockerfile
 |-- pytest.ini
+|-- README.md
 |-- requirements-dashboard.txt
 |-- requirements.txt
 |-- app
@@ -126,3 +127,4 @@ C:\PurchasePropensityForecasting
 - `requirements-dashboard.txt`: Step 12 Docker 이미지에서 Streamlit 보고서 실행에 필요한 최소 의존성 목록이다. 학습용 `torch`, `lightgbm`, `scikit-learn`은 컨테이너에 설치하지 않는다.
 - `Dockerfile`: Step 12 Streamlit 보고서 실행용 컨테이너 정의다. `python:3.10-slim`을 사용하고 `app`, `src`, `docs`, `artifacts/reports`만 복사해 대용량 원천 데이터와 feature artifact 없이 결과 보고서를 실행한다.
 - `.dockerignore`: Docker build context에서 `data/`와 `artifacts/features/`를 제외하고, 보고서 표시용 `artifacts/reports/`는 포함한다.
+- `README.md`: 다른 사용자가 Docker로 Streamlit 결과 보고서를 실행하는 절차와 주의사항을 안내한다.
